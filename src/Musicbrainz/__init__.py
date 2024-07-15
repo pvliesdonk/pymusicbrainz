@@ -3,8 +3,16 @@ import logging
 from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, MediumID, TrackID,
                         ReleaseType, ReleaseStatus)
 from .api import MBApi
-from .dataclasses import Artist, ReleaseGroup, Release, Recording, Medium, Track, Work
-
+from .dataclasses import (Artist, ReleaseGroup, Release, Recording, Medium, Track, Work)
+from .search import (
+    select_best_candidate,
+    find_best_release_group_by_search,
+    find_best_release_group_by_fingerprint,
+    find_best_release_group,
+    find_release_for_release_group_recording,
+    find_best_release_group_by_recording_ids,
+    find_track_release_for_release_group_recording,
+    find_best_release_group_by_artist)
 
 logging.getLogger("musicbrainzngs").setLevel(logging.ERROR)
 
