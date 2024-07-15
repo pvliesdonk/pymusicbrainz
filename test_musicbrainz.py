@@ -1,7 +1,7 @@
 import logging
 
-from src.Musicbrainz import *
-from src.Musicbrainz import canonical
+from src.musicbrainz_wrapper import *
+from src.musicbrainz_wrapper import canonical
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)

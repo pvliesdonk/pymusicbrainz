@@ -457,7 +457,7 @@ class MBApi:
             _logger.debug(f"Search gave us {len(result)} results above cutoff threshold")
             return result
         except musicbrainzngs.WebServiceError as ex:
-            raise MBApiError("Could not get result from Musicbrainz API") from ex
+            raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
 
     def search_recording(
             self,
@@ -520,4 +520,4 @@ class MBApi:
             self._mb_shelf[key] = result
             return result
         except musicbrainzngs.WebServiceError as ex:
-            raise MBApiError("Could not get result from Musicbrainz API") from ex
+            raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
