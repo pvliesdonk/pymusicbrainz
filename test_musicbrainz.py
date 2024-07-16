@@ -1,14 +1,24 @@
 import logging
 
+import requests
+from requests_file import FileAdapter
+
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
+from src.musicbrainz_wrapper.canonical import get_canonical_dump_url
 
 if __name__ == "__main__":
+    logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
 
     MBApi.configure(search_cache_default=True, fetch_cache_default=True)
 
     sess = canonical.get_session()
+
+    canonical.get_canonical_dump(force=True)
+
+    exit()
+
 
     mb: MBApi
     with MBApi() as mb:
