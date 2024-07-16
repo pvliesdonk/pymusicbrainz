@@ -160,8 +160,8 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                             latest_import_config = db_session.scalar(
                                 sa.select(Configuration).where(Configuration.attribute == "latest_import"))
 
-                            latest_import = latest_import_config.value
-                            latest_import_asdate = parser.parse(latest_import) if latest_import_config is not None else None
+                            latest_import = latest_import_config.value if latest_import_config is not None else None
+                            latest_import_asdate = parser.parse(latest_import) if latest_import is not None else None
 
                             timestamp = fo.read().decode()
                             timestamp_asdate = parser.parse(timestamp)
