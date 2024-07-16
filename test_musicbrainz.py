@@ -1,7 +1,6 @@
 import logging
 
 import requests
-from requests_file import FileAdapter
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
