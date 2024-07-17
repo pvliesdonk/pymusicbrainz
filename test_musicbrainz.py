@@ -1,6 +1,8 @@
 import logging
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
@@ -12,9 +14,18 @@ if __name__ == "__main__":
 
     MBApi.configure(search_cache_default=True, fetch_cache_default=True)
 
-    sess = canonical.get_session()
+    db_session = canonical.get_session()
 
-    canonical.get_canonical_dump(force=True)
+    req_session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.1,
+        status_forcelist=[502, 503, 504],
+        allowed_methods={'POST'},
+    )
+    req_session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    canonical.get_canonical_dump(req_session=req_session, db_session=db_session)
 
     exit()
 

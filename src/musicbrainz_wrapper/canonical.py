@@ -12,7 +12,9 @@ from dateutil import parser
 import requests
 import sqlalchemy as sa
 import zstandard
+from requests.adapters import HTTPAdapter
 from sqlalchemy import orm
+from urllib3 import Retry
 
 from .datatypes import ReleaseID, ReleaseGroupID, RecordingID, ArtistID
 from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
@@ -130,6 +132,13 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
 
     if req_session is None:
         req_session = requests.Session()
+        retries = Retry(
+            total=3,
+            backoff_factor=0.1,
+            status_forcelist=[502, 503, 504],
+            allowed_methods={'POST'},
+        )
+        req_session.mount('https://', HTTPAdapter(max_retries=retries))
 
     url = get_canonical_dump_url(req_session)
 
