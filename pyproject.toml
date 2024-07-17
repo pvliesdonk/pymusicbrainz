@@ -18,7 +18,8 @@ dependencies = [
     "sqlalchemy",
     "python-dateutil",
     "rapidfuzz",
-    "pyacoustid"
+    "pyacoustid",
+    "sqlalchemy-utils"
 ]
 
 [project.scripts]
