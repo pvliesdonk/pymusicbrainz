@@ -167,7 +167,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
 
     import_complete = db_session.scalar(
         sa.select(Configuration).where(Configuration.attribute == "import_complete"))
-    if import_complete is not None and import_complete.value != 1:
+    if import_complete is not None and import_complete.value != '1':
         _logger.warning("Incomplete import found")
         force = True
     else:
