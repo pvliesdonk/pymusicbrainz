@@ -1,26 +1,23 @@
 import csv
-import datetime
 import io
 import logging
 import pathlib
 import re
 import tarfile
-
-
+import tempfile
+from io import TextIOWrapper
 from typing import List
 
-from dateutil import parser
 import requests
 import sqlalchemy as sa
-import zstandard
-from requests.adapters import HTTPAdapter
-from sqlalchemy import orm, PrimaryKeyConstraint
-from urllib3 import Retry
 import urllib3.util
+import zstandard
+from dateutil import parser
+from requests.adapters import HTTPAdapter
+from sqlalchemy import orm
+from urllib3 import Retry
 
 from .datatypes import ReleaseID, ReleaseGroupID, RecordingID, ArtistID
-
-from io import TextIOWrapper
 
 _logger = logging.getLogger(__name__)
 
@@ -37,14 +34,14 @@ class Base(orm.DeclarativeBase):
 class Configuration(Base):
     __tablename__ = 'configuration'
 
-    attribute: orm.Mapped[str] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+    attribute: orm.Mapped[str] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     value: orm.Mapped[str] = orm.mapped_column()
 
 
 class CanonicalReleaseMapping(Base):
     __tablename__ = 'canonical_release_mapping'
 
-    release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+    release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     canonical_release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
     release_group_mbid: orm.Mapped[ReleaseGroupID] = orm.mapped_column(sa.types.Uuid)
 
@@ -52,7 +49,7 @@ class CanonicalReleaseMapping(Base):
 class CanonicalRecordingMapping(Base):
     __tablename__ = 'canonical_recording_mapping'
 
-    recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+    recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     canonical_recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid)
     canonical_release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
 
@@ -60,7 +57,7 @@ class CanonicalRecordingMapping(Base):
 class ArtistCredit(Base):
     __tablename__ = 'artist_credit'
 
-    artist_credit_id: orm.Mapped[int] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+    artist_credit_id: orm.Mapped[int] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     artist_credit_name: orm.Mapped[str] = orm.mapped_column()
 
     artist_mbids: orm.Mapped[List[ArtistID]] = orm.relationship(
@@ -72,14 +69,14 @@ class ArtistCredit(Base):
 class ArtistCreditArtist(Base):
     __tablename__ = 'artist_credit_artist'
     artist_credit_id: orm.Mapped[int] = orm.mapped_column(sa.ForeignKey("artist_credit.artist_credit_id"),
-                                                          primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+                                                          primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     artist_mbid: orm.Mapped[ArtistID] = orm.mapped_column(sa.types.Uuid)
 
 
 class CanonicalMetadata(Base):
     __tablename__ = 'canonical_metadata'
 
-    id: orm.Mapped[int] = orm.mapped_column( primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
+    id: orm.Mapped[int] = orm.mapped_column( primary_key=True, sqlite_on_conflict_primary_key='IGNORE')
     artist_credit_id: orm.Mapped[int] = orm.mapped_column(sa.ForeignKey("artist_credit.artist_credit_id"))
     release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
     release_name: orm.Mapped[str] = orm.mapped_column(index=True)
@@ -130,7 +127,7 @@ def get_canonical_dump_url(req_session: requests.Session = None) -> urllib3.util
     url = urllib3.util.parse_url(base_url.url + f"musicbrainz-canonical-dump-{match}/musicbrainz-canonical-dump-{match}.tar.zst")
     return url
 
-def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Session = None, db_session=None, batch_size: int = 100000, force: bool = False):
+def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Session = None, db_session=None, batch_size: int = 1000000, force: bool = False):
 
 
     if req_session is None:
@@ -157,9 +154,15 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
         _logger.warning("Incomplete import found")
         force=True
 
-    with req_session.get(url, stream=True) as req:
-        req_buf = io.BufferedReader(req.raw)
-        with zstandard.open(req_buf, mode='rb') as zstd_file:
+    with tempfile.TemporaryFile() as temp_file:
+
+        with req_session.get(url, stream=True) as r:
+            for chunk in r.iter_content(chunk_size=1024):
+                temp_file.write(chunk)
+
+        temp_file.seek(0)
+
+        with zstandard.open(temp_file, mode='rb') as zstd_file:
             with tarfile.open(fileobj=zstd_file, mode='r:') as tar_file:
                 while (member := tar_file.next()) is not None:
                     if not member.isfile():
@@ -183,6 +186,11 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                             if force or latest_import is None or timestamp > latest_import:
                                 # check versus known timestamp, delete all if needed
                                 _logger.info("Newer dataset found, removing old one")
+                                db_session.execute(sa.delete(CanonicalReleaseMapping))
+                                db_session.execute(sa.delete(CanonicalRecordingMapping))
+                                db_session.execute(sa.delete(ArtistCredit))
+                                db_session.execute(sa.delete(ArtistCreditArtist))
+                                db_session.execute(sa.delete(CanonicalMetadata))
                                 db_session.execute(
                                     sa.insert(Configuration).
                                     values({"attribute": "latest_import", "value": timestamp}))
@@ -238,7 +246,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
 
                                     db_session.execute(stmt, cmds)
 
-                                    db_session.commit()
+                                    #db_session.commit()
                             _logger.debug("Done importing")
 
                         case "canonical_recording_redirect.csv":
@@ -262,7 +270,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                                     stmt = sa.insert(CanonicalRecordingMapping)
                                     db_session.execute(stmt, crms)
 
-                                    db_session.commit()
+                                    #db_session.commit()
                             _logger.debug("Done importing")
 
                         case "canonical_release_redirect.csv":
@@ -286,7 +294,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                                     stmt = sa.insert(CanonicalReleaseMapping)
                                     db_session.execute(stmt, crms)
 
-                                    db_session.commit()
+                                    #db_session.commit()
                             _logger.debug("Done importing")
 
                         case _:
