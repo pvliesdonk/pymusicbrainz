@@ -28,8 +28,6 @@ if __name__ == "__main__":
     url = get_canonical_dump_url()
     canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
 
-    exit()
-
 
     mb: MBApi
     with MBApi() as mb:

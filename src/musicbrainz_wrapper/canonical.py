@@ -15,6 +15,7 @@ import zstandard
 from dateutil import parser
 from requests.adapters import HTTPAdapter
 from sqlalchemy import orm
+from sqlalchemy_utils import create_view
 from urllib3 import Retry
 
 from .datatypes import ReleaseID, ReleaseGroupID, RecordingID, ArtistID
@@ -85,6 +86,12 @@ class CanonicalMetadata(Base):
     combined_lookup: orm.Mapped[str] = orm.mapped_column(index=True)
     score: orm.Mapped[int] = orm.mapped_column(index=True)
 
+# select cm.*, ac.artist_credit_name, aca.artist_mbid
+# from canonical_metadata cm
+# join main.artist_credit ac on ac.artist_credit_id = cm.artist_credit_id
+# join main.artist_credit_artist aca on cm.artist_credit_id = aca.artist_credit_id;
+
+
 
 
 def init_database(
@@ -103,6 +110,9 @@ def init_database(
 
     _logger.debug(f"Opening/creating database as {database_url}")
     _engine = sa.create_engine(database_url, echo=echo_sql)
+
+    view_stmt = sa.select(CanonicalMetadata).join(ArtistCredit).join(ArtistCreditArtist)
+    create_view('canonical_release_mapping_all', view_stmt, Base.metadata)
 
     Base.metadata.create_all(_engine)
 
@@ -247,7 +257,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
 
                                     db_session.execute(stmt, cmds)
 
-                                    #db_session.commit()
+                                    db_session.commit()
                             _logger.debug("Done importing")
 
                         case "canonical_recording_redirect.csv":
@@ -271,7 +281,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                                     stmt = sa.insert(CanonicalRecordingMapping)
                                     db_session.execute(stmt, crms)
 
-                                    #db_session.commit()
+                                    db_session.commit()
                             _logger.debug("Done importing")
 
                         case "canonical_release_redirect.csv":
@@ -295,7 +305,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                                     stmt = sa.insert(CanonicalReleaseMapping)
                                     db_session.execute(stmt, crms)
 
-                                    #db_session.commit()
+                                    db_session.commit()
                             _logger.debug("Done importing")
 
                         case _:
