@@ -160,6 +160,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
             for chunk in r.iter_content(chunk_size=1024):
                 temp_file.write(chunk)
 
+        _logger.info("Downloaded raw data files")
         temp_file.seek(0)
 
         with zstandard.open(temp_file, mode='rb') as zstd_file:
