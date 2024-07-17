@@ -1,11 +1,13 @@
 import datetime
 import logging
+import pathlib
 import shelve
 from contextlib import contextmanager
 
 import musicbrainzngs
 
-from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, ReleaseType, VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ReleaseStatus
+from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, ReleaseType, VA_ARTIST_ID, \
+    UNKNOWN_ARTIST_ID, ReleaseStatus
 from .exceptions import NotConfiguredError, MBApiError
 from .util import split_artist
 
@@ -18,9 +20,24 @@ _DEFAULT_CONTACT: str = "https://music.liesdonk.nl"
 _DEFAULT_API_URL: str = "musicbrainz.org"
 _DEFAULT_HTTPS: bool = True
 _DEFAULT_RATE_LIMIT: bool = True
-_DEFAULT_CACHE_FILE: str = "temporary_mb_cache"
+
 
 ACOUSTID_APIKEY = "7z40OrGgVS"
+
+_datadir: pathlib.Path = pathlib.Path.home() / '.mb_data'
+
+
+def set_datadir(p: pathlib.Path):
+    global _datadir
+    _datadir = p.resolve()
+    _datadir.mkdir(parents=True, exist_ok=True)
+    _logger.info(f"Setting datadir to {_datadir}")
+
+
+def get_datadir() -> pathlib.Path:
+    if not _datadir.is_dir():
+        _datadir.mkdir(parents=True, exist_ok=True)
+    return _datadir
 
 
 class MBApi:
@@ -40,22 +57,24 @@ class MBApi:
                   api_url: str = _DEFAULT_API_URL,
                   use_https: bool = _DEFAULT_HTTPS,
                   rate_limit: bool = _DEFAULT_RATE_LIMIT,
-                  cache_file: str = _DEFAULT_CACHE_FILE,
                   search_cache_default: bool = True,
                   fetch_cache_default: bool = True
-    ):
+                  ):
+        cache_file = get_datadir() / 'mb_cache'
 
         cls._config = {"app": app, "version": version, "contact": contact, "api_url": api_url, "use_https": use_https,
-                       "rate_limit": rate_limit, "cache_file": cache_file, "search_cache_default": search_cache_default, "fetch_cache_default": fetch_cache_default}
+                       "rate_limit": rate_limit, "cache_file": cache_file, "search_cache_default": search_cache_default,
+                       "fetch_cache_default": fetch_cache_default}
 
-        _logger.debug(f"Configuring MusicBrainz API access via 'http{'s' if use_https else '' }://{api_url}' with rate limiting {'enabled' if rate_limit else 'disabled'}.")
+        _logger.debug(
+            f"Configuring MusicBrainz API access via 'http{'s' if use_https else ''}://{api_url}' with rate limiting {'enabled' if rate_limit else 'disabled'}.")
         musicbrainzngs.set_hostname(api_url, use_https=use_https)
         musicbrainzngs.set_rate_limit(rate_limit)
 
         musicbrainzngs.set_useragent(app=app, version=version, contact=contact)
 
         _logger.debug(f"Using MusicBrainz cache in {cache_file}")
-        cls._mb_shelf = shelve.open(cache_file)
+        cls._mb_shelf = shelve.open(str(cache_file))
         cls._object_cache = {}
 
         cls._configured = True
@@ -83,13 +102,12 @@ class MBApi:
         self.clear_cache()
 
     def check_mirror(self):
-        if self._mirror_disabled:       # mirror disabled
-            if not self._no_mirror:     # but we want the mirror
+        if self._mirror_disabled:  # mirror disabled
+            if not self._no_mirror:  # but we want the mirror
                 self.enable_mirror()
-        else:                           # mirror enable
-            if self._no_mirror:         # but we don't want one
+        else:  # mirror enable
+            if self._no_mirror:  # but we don't want one
                 self.disable_mirror()
-
 
     def disable_mirror(self):
         if not self._mirror_disabled:
@@ -112,7 +130,6 @@ class MBApi:
             yield self
         finally:
             self.enable_mirror()
-
 
     def get_artist_by_id(self, artist_id: ArtistID) -> "Artist":
         if artist_id in self._object_cache.keys():
@@ -420,7 +437,7 @@ class MBApi:
         self._mb_shelf[key] = response
         return response
 
-    def search_artists( self,   artist_query: str,   cut_off: int = 90) -> list["Artist"]:
+    def search_artists(self, artist_query: str, cut_off: int = 90) -> list["Artist"]:
 
         _logger.debug(f"Searching for artist '{artist_query}' from MusicBrainz API")
 
@@ -434,7 +451,6 @@ class MBApi:
 
         search_params = {
         }
-
 
         try:
             result = []

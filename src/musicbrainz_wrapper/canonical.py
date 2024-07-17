@@ -18,6 +18,7 @@ from sqlalchemy import orm
 from sqlalchemy_utils import create_view
 from urllib3 import Retry
 
+from .api import get_datadir
 from .datatypes import ReleaseID, ReleaseGroupID, RecordingID, ArtistID
 
 _logger = logging.getLogger(__name__)
@@ -94,25 +95,19 @@ class CanonicalMetadata(Base):
 
 
 
-def init_database(
-        db_file: pathlib.Path = None, db_url: str = None, echo_sql: bool = False
-):
+def init_database(echo_sql: bool = False):
     global _engine
     # Create a database connection
-    if db_url is not None:
-        _logger.debug(f"Using database at custom URI '{db_url}'.")
-        database_url = db_url
-    elif db_file is None:
-        raise Exception("No database file or url provided.")
-    else:
-        _logger.debug(f"Using sqlite3 database in file {db_file.absolute()}")
-        database_url = f"sqlite+pysqlite:///{db_file.as_posix()}"
+
+    db_file = get_datadir() / 'mb_canonical.db'
+    _logger.debug(f"Using sqlite3 database in file {db_file.absolute()}")
+    database_url = f"sqlite+pysqlite:///{db_file.as_posix()}"
 
     _logger.debug(f"Opening/creating database as {database_url}")
     _engine = sa.create_engine(database_url, echo=echo_sql)
 
-    view_stmt = sa.select(CanonicalMetadata).join(ArtistCredit).join(ArtistCreditArtist)
-    create_view('canonical_release_mapping_all', view_stmt, Base.metadata)
+    #view_stmt = sa.select(CanonicalMetadata).join(ArtistCredit).join(ArtistCreditArtist)
+    #create_view('canonical_release_mapping_all', view_stmt, Base.metadata)
 
     Base.metadata.create_all(_engine)
 
@@ -120,7 +115,7 @@ def init_database(
 def get_session(db_file: pathlib.Path = _DEFAULT_DB_FILE):
     global _engine
     if _engine is None:
-        init_database(db_file)
+        init_database(False)
 
     return orm.Session(_engine)
 
@@ -162,7 +157,26 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
         sa.select(Configuration).where(Configuration.attribute == "import_complete"))
     if import_complete is not None and import_complete.value != 1:
         _logger.warning("Incomplete import found")
-        force=True
+        force = True
+
+
+    latest_import_config = db_session.scalar(
+        sa.select(Configuration).where(Configuration.attribute == "latest_import"))
+
+    latest_import = latest_import_config.value if latest_import_config is not None else None
+    latest_import_asdate = parser.parse(latest_import) if latest_import is not None else None
+
+
+    # try to determine version from filename:
+    match = re.search(r"dump-(\d\d\d\d\d\d\d\d)-\d\d\d\d\d\d", url.url)
+    if match is not None:
+
+        url_date = match.group(1)
+        url_date_asdate = parser.parse(url_date)
+
+        if (not force) and (not latest_import_asdate is None) and (not url_date_asdate > latest_import_asdate):
+                _logger.info("Latest version of canonical data seems to be in the database already")
+
 
     with tempfile.TemporaryFile() as temp_file:
 
@@ -185,11 +199,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
                     match filename:
                         case "TIMESTAMP":
 
-                            latest_import_config = db_session.scalar(
-                                sa.select(Configuration).where(Configuration.attribute == "latest_import"))
 
-                            latest_import = latest_import_config.value if latest_import_config is not None else None
-                            latest_import_asdate = parser.parse(latest_import) if latest_import is not None else None
 
                             timestamp = fo.read().decode()
                             timestamp_asdate = parser.parse(timestamp)

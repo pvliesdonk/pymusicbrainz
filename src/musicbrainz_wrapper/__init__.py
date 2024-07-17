@@ -1,4 +1,5 @@
 import logging
+import pathlib
 
 from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, MediumID, TrackID,
                         ReleaseType, ReleaseStatus)
@@ -14,6 +15,7 @@ from .search import (
     find_track_release_for_release_group_recording,
     find_best_release_group_by_artist)
 
+_logger = logging.getLogger(__name__)
 logging.getLogger("musicbrainzngs").setLevel(logging.ERROR)
 
 
@@ -35,4 +37,3 @@ def get_recording(recording_id: RecordingID) -> Recording:
 
 def get_work(work_id: WorkID) -> Work:
     return MBApi().get_work_by_id(work_id)
-
