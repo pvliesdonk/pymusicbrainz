@@ -13,11 +13,11 @@ import requests
 import sqlalchemy as sa
 import zstandard
 from requests.adapters import HTTPAdapter
-from sqlalchemy import orm
+from sqlalchemy import orm, PrimaryKeyConstraint
 from urllib3 import Retry
+import urllib3.util
 
 from .datatypes import ReleaseID, ReleaseGroupID, RecordingID, ArtistID
-from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
 
 from io import TextIOWrapper
 
@@ -36,13 +36,14 @@ class Base(orm.DeclarativeBase):
 class Configuration(Base):
     __tablename__ = 'configuration'
 
-    attribute: orm.Mapped[str] = orm.mapped_column(primary_key=True)
+    attribute: orm.Mapped[str] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     value: orm.Mapped[str] = orm.mapped_column()
+
 
 class CanonicalReleaseMapping(Base):
     __tablename__ = 'canonical_release_mapping'
 
-    release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid, primary_key=True)
+    release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     canonical_release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
     release_group_mbid: orm.Mapped[ReleaseGroupID] = orm.mapped_column(sa.types.Uuid)
 
@@ -50,7 +51,7 @@ class CanonicalReleaseMapping(Base):
 class CanonicalRecordingMapping(Base):
     __tablename__ = 'canonical_recording_mapping'
 
-    recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid, primary_key=True)
+    recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid, primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     canonical_recording_mbid: orm.Mapped[RecordingID] = orm.mapped_column(sa.types.Uuid)
     canonical_release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
 
@@ -58,7 +59,7 @@ class CanonicalRecordingMapping(Base):
 class ArtistCredit(Base):
     __tablename__ = 'artist_credit'
 
-    artist_credit_id: orm.Mapped[int] = orm.mapped_column(primary_key=True)
+    artist_credit_id: orm.Mapped[int] = orm.mapped_column(primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     artist_credit_name: orm.Mapped[str] = orm.mapped_column()
 
     artist_mbids: orm.Mapped[List[ArtistID]] = orm.relationship(
@@ -70,14 +71,14 @@ class ArtistCredit(Base):
 class ArtistCreditArtist(Base):
     __tablename__ = 'artist_credit_artist'
     artist_credit_id: orm.Mapped[int] = orm.mapped_column(sa.ForeignKey("artist_credit.artist_credit_id"),
-                                                          primary_key=True)
+                                                          primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     artist_mbid: orm.Mapped[ArtistID] = orm.mapped_column(sa.types.Uuid)
 
 
 class CanonicalMetadata(Base):
     __tablename__ = 'canonical_metadata'
 
-    id: orm.Mapped[int] = orm.mapped_column(primary_key=True)
+    id: orm.Mapped[int] = orm.mapped_column( primary_key=True, sqlite_on_conflict_primary_key='REPLACE')
     artist_credit_id: orm.Mapped[int] = orm.mapped_column(sa.ForeignKey("artist_credit.artist_credit_id"))
     release_mbid: orm.Mapped[ReleaseID] = orm.mapped_column(sa.types.Uuid)
     release_name: orm.Mapped[str] = orm.mapped_column(index=True)
@@ -85,6 +86,7 @@ class CanonicalMetadata(Base):
     recording_name: orm.Mapped[str] = orm.mapped_column(index=True)
     combined_lookup: orm.Mapped[str] = orm.mapped_column(index=True)
     score: orm.Mapped[int] = orm.mapped_column(index=True)
+
 
 
 def init_database(
@@ -114,20 +116,20 @@ def get_session(db_file: pathlib.Path = _DEFAULT_DB_FILE):
 
     return orm.Session(_engine)
 
-def get_canonical_dump_url(req_session: requests.Session = None) -> str:
+def get_canonical_dump_url(req_session: requests.Session = None) -> urllib3.util.Url:
     _logger.debug("Determining latest Musicbrainz canonical dump")
 
-    base_url = "https://data.metabrainz.org/pub/musicbrainz/canonical_data/"
+    base_url = urllib3.util.parse_url("https://data.metabrainz.org/pub/musicbrainz/canonical_data/")
 
     if req_session is None:
         req_session = requests.Session()
 
     res = req_session.get(base_url)
     match = max(re.findall(r"href=\"musicbrainz-canonical-dump-(.*?)/\"", res.text))
-    url = base_url + f"musicbrainz-canonical-dump-{match}/musicbrainz-canonical-dump-{match}.tar.zst"
+    url = urllib3.util.parse_url(base_url.url + f"musicbrainz-canonical-dump-{match}/musicbrainz-canonical-dump-{match}.tar.zst")
     return url
 
-def get_canonical_dump(req_session: requests.Session = None, db_session=None, batch_size: int = 100000, force: bool = False):
+def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Session = None, db_session=None, batch_size: int = 100000, force: bool = False):
 
 
     if req_session is None:
@@ -140,7 +142,8 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
         )
         req_session.mount('https://', HTTPAdapter(max_retries=retries))
 
-    url = get_canonical_dump_url(req_session)
+    if url is None:
+        url = get_canonical_dump_url(req_session)
 
     _logger.info(f"Retrieving canonical musicbrainz data from {url}")
 
@@ -178,24 +181,11 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                             if force or latest_import is None or timestamp > latest_import:
                                 # check versus known timestamp, delete all if needed
                                 _logger.info("Newer dataset found, removing old one")
-                                db_session.execute(sa.delete(CanonicalMetadata))
-                                db_session.execute(sa.delete(CanonicalReleaseMapping))
-                                db_session.execute(sa.delete(CanonicalRecordingMapping))
-                                db_session.execute(sa.delete(ArtistCreditArtist))
-                                db_session.execute(sa.delete(ArtistCredit))
                                 db_session.execute(
-                                    sqlite_upsert(Configuration).
-                                    values({"attribute": "latest_import", "value": timestamp}).
-                                    on_conflict_do_update(
-                                        index_elements=["attribute"],
-                                        set_={ "value": timestamp}
-                                    ))
+                                    sa.insert(Configuration).
+                                    values({"attribute": "latest_import", "value": timestamp}))
                                 db_session.execute(
-                                    sqlite_upsert(Configuration).values({"attribute": "import_complete", "value": 0}).
-                                        on_conflict_do_update(
-                                        index_elements=["attribute"],
-                                        set_={"value": 0}
-                                    ))
+                                    sa.insert(Configuration).values({"attribute": "import_complete", "value": 0}))
                                 db_session.commit()
 
                             else:
@@ -223,14 +213,14 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                                         "artist_mbid": ArtistID(artist_mbid)
                                     } for row in next_rows if row is not None for artist_mbid in
                                         row['artist_mbids'].split(',')]
-                                    stmt = sqlite_upsert(ArtistCreditArtist).on_conflict_do_nothing()
+                                    stmt = sa.insert(ArtistCreditArtist)
                                     db_session.execute(stmt, acas)
 
                                     acs = [{
                                         "artist_credit_id": int(row['artist_credit_id']),
                                         "artist_credit_name": row['artist_credit_name']
                                     } for row in next_rows if row is not None]
-                                    stmt = sqlite_upsert(ArtistCredit).on_conflict_do_nothing()
+                                    stmt = sa.insert(ArtistCredit)
                                     db_session.execute(stmt, acs)
 
                                     cmds = [{
@@ -242,7 +232,8 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                                         "combined_lookup": row['combined_lookup'],
                                         "score": int(row['score'])
                                     } for row in next_rows if row is not None]
-                                    stmt = sqlite_upsert(CanonicalMetadata).on_conflict_do_nothing()
+                                    stmt = sa.insert(CanonicalMetadata)
+
                                     db_session.execute(stmt, cmds)
 
                                     db_session.commit()
@@ -266,7 +257,7 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                                         "canonical_release_mbid": ReleaseID(row['canonical_release_mbid']),
                                         "recording_mbid": RecordingID(row['recording_mbid'])
                                     } for row in next_rows if row is not None]
-                                    stmt = sqlite_upsert(CanonicalRecordingMapping).on_conflict_do_nothing()
+                                    stmt = sa.insert(CanonicalRecordingMapping)
                                     db_session.execute(stmt, crms)
 
                                     db_session.commit()
@@ -290,7 +281,7 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                                         "release_group_mbid": ReleaseID(row['release_group_mbid']),
                                         "release_mbid": ReleaseID(row['release_mbid'])
                                     } for row in next_rows if row is not None]
-                                    stmt = sqlite_upsert(CanonicalReleaseMapping).on_conflict_do_nothing()
+                                    stmt = sa.insert(CanonicalReleaseMapping)
                                     db_session.execute(stmt, crms)
 
                                     db_session.commit()
@@ -300,9 +291,5 @@ def get_canonical_dump(req_session: requests.Session = None, db_session=None, ba
                             print(f"Don't know how to handle {filename}")
                             break
     db_session.execute(
-        sqlite_upsert(Configuration).values({"attribute": "import_complete", "value": 1}).
-        on_conflict_do_update(
-            index_elements=["attribute"],
-            set_={"value": 1}
-        ))
+        sa.insert(Configuration).values({"attribute": "import_complete", "value": 1}))
     db_session.commit()

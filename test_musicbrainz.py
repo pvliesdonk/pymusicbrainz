@@ -25,7 +25,8 @@ if __name__ == "__main__":
     )
     req_session.mount('https://', HTTPAdapter(max_retries=retries))
 
-    canonical.get_canonical_dump(req_session=req_session, db_session=db_session)
+    url = get_canonical_dump_url()
+    canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
 
     exit()
 
