@@ -1,5 +1,6 @@
 import csv
 import datetime
+import io
 import logging
 import pathlib
 import re
@@ -157,7 +158,8 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
         force=True
 
     with req_session.get(url, stream=True) as req:
-        with zstandard.open(req.raw, mode='rb') as zstd_file:
+        req_buf = io.BufferedReader(req.raw)
+        with zstandard.open(req_buf, mode='rb') as zstd_file:
             with tarfile.open(fileobj=zstd_file, mode='r:') as tar_file:
                 while (member := tar_file.next()) is not None:
                     if not member.isfile():
