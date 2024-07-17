@@ -3,6 +3,7 @@ import os
 
 import requests
 from requests.adapters import HTTPAdapter
+from requests_file import FileAdapter
 from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
@@ -28,8 +29,9 @@ if __name__ == "__main__":
         allowed_methods={'POST'},
     )
     req_session.mount('https://', HTTPAdapter(max_retries=retries))
+    req_session.mount('file://', FileAdapter())
 
-    url = get_canonical_dump_url()
+    url = os.environ.get('MB_CANONICAL_DUMP_URL', get_canonical_dump_url())
     canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
 
 

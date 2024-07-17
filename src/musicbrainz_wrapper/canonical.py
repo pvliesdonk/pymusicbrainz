@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import os
 import pathlib
 import re
 import tarfile
@@ -14,6 +15,7 @@ import urllib3.util
 import zstandard
 from dateutil import parser
 from requests.adapters import HTTPAdapter
+from requests_file import FileAdapter
 from sqlalchemy import orm
 from sqlalchemy_utils import create_view
 from urllib3 import Retry
@@ -122,6 +124,8 @@ def get_session(db_file: pathlib.Path = _DEFAULT_DB_FILE):
 def get_canonical_dump_url(req_session: requests.Session = None) -> urllib3.util.Url:
     _logger.debug("Determining latest Musicbrainz canonical dump")
 
+
+
     base_url = urllib3.util.parse_url("https://data.metabrainz.org/pub/musicbrainz/canonical_data/")
 
     if req_session is None:
@@ -144,6 +148,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
             allowed_methods={'POST'},
         )
         req_session.mount('https://', HTTPAdapter(max_retries=retries))
+        req_session.mount('file://', FileAdapter())
 
     if url is None:
         url = get_canonical_dump_url(req_session)
@@ -193,149 +198,152 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
             _logger.debug(f"Could not determine date from url {url}")
 
 
-    with tempfile.TemporaryFile() as temp_file:
+    if url.scheme == "file":
+        fd = open(url.path, "rb")
+    else:
+        fd =  tempfile.TemporaryFile()
 
         with req_session.get(url, stream=True) as r:
             for chunk in r.iter_content(chunk_size=1024):
-                temp_file.write(chunk)
+                fd.write(chunk)
 
         _logger.info("Downloaded raw data files")
-        temp_file.seek(0)
+        fd.seek(0)
 
-        with zstandard.open(temp_file, mode='rb') as zstd_file:
-            with tarfile.open(fileobj=zstd_file, mode='r:') as tar_file:
-                while (member := tar_file.next()) is not None:
-                    if not member.isfile():
-                        continue
+    with zstandard.open(fd, mode='rb') as zstd_file:
+        with tarfile.open(fileobj=zstd_file, mode='r:') as tar_file:
+            while (member := tar_file.next()) is not None:
+                if not member.isfile():
+                    continue
 
-                    _logger.debug(f"Processing {member.name}")
-                    fo = tar_file.extractfile(member)
-                    filename = member.name.rsplit('/')[-1]
-                    match filename:
-                        case "TIMESTAMP":
+                _logger.debug(f"Processing {member.name}")
+                fo = tar_file.extractfile(member)
+                filename = member.name.rsplit('/')[-1]
+                match filename:
+                    case "TIMESTAMP":
 
 
 
-                            timestamp = fo.read().decode()
-                            timestamp_asdate = parser.parse(timestamp)
+                        timestamp = fo.read().decode()
+                        timestamp_asdate = parser.parse(timestamp)
 
-                            if force or latest_import is None or timestamp > latest_import:
-                                # check versus known timestamp, delete all if needed
-                                _logger.info("Newer dataset found, removing old one")
-                                db_session.execute(sa.delete(CanonicalReleaseMapping))
-                                db_session.execute(sa.delete(CanonicalRecordingMapping))
-                                db_session.execute(sa.delete(ArtistCredit))
-                                db_session.execute(sa.delete(ArtistCreditArtist))
-                                db_session.execute(sa.delete(CanonicalMetadata))
-                                db_session.execute(
-                                    sa.insert(Configuration).
-                                    values({"attribute": "latest_import", "value": timestamp}))
-                                db_session.execute(
-                                    sa.insert(Configuration).values({"attribute": "import_complete", "value": 0}))
+                        if force or latest_import is None or timestamp > latest_import:
+                            # check versus known timestamp, delete all if needed
+                            _logger.info("Newer dataset found, removing old one")
+                            db_session.execute(sa.delete(CanonicalReleaseMapping))
+                            db_session.execute(sa.delete(CanonicalRecordingMapping))
+                            db_session.execute(sa.delete(ArtistCredit))
+                            db_session.execute(sa.delete(ArtistCreditArtist))
+                            db_session.execute(sa.delete(CanonicalMetadata))
+                            db_session.execute(
+                                sa.insert(Configuration).
+                                values({"attribute": "latest_import", "value": timestamp}))
+                            db_session.execute(
+                                sa.insert(Configuration).values({"attribute": "import_complete", "value": 0}))
+                            db_session.commit()
+
+                        else:
+                            _logger.info("Already working with latest dataset.")
+                            return
+
+                    case "COPYING":
+                        # _logger.debug(fo.read().decode())
+                        pass
+                    case "canonical_musicbrainz_data.csv":
+                        _logger.info("Importing Canonical Musicbrainz Metadata")
+                        with TextIOWrapper(fo, encoding='utf-8') as tw:
+                            csvreader = csv.DictReader(tw)
+                            row: dict
+                            i = 1
+                            while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
+                                if all(x is None for x in next_rows):
+                                    break
+
+                                _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
+                                i = i + batch_size
+
+                                acas = [{
+                                    "artist_credit_id": int(row['artist_credit_id']),
+                                    "artist_mbid": ArtistID(artist_mbid)
+                                } for row in next_rows if row is not None for artist_mbid in
+                                    row['artist_mbids'].split(',')]
+                                stmt = sa.insert(ArtistCreditArtist)
+                                db_session.execute(stmt, acas)
+
+                                acs = [{
+                                    "artist_credit_id": int(row['artist_credit_id']),
+                                    "artist_credit_name": row['artist_credit_name']
+                                } for row in next_rows if row is not None]
+                                stmt = sa.insert(ArtistCredit)
+                                db_session.execute(stmt, acs)
+
+                                cmds = [{
+                                    "artist_credit_id": int(row['artist_credit_id']),
+                                    "release_mbid": ReleaseID(row['release_mbid']),
+                                    "release_name": row['release_name'],
+                                    "recording_mbid": RecordingID(row['recording_mbid']),
+                                    "recording_name": row['recording_name'],
+                                    "combined_lookup": row['combined_lookup'],
+                                    "score": int(row['score'])
+                                } for row in next_rows if row is not None]
+                                stmt = sa.insert(CanonicalMetadata)
+
+                                db_session.execute(stmt, cmds)
+
                                 db_session.commit()
+                        _logger.debug("Done importing")
 
-                            else:
-                                _logger.info("Already working with latest dataset.")
-                                return
+                    case "canonical_recording_redirect.csv":
+                        _logger.info("Importing Canonical Musicbrainz Recording Redirects")
+                        with TextIOWrapper(fo, encoding='utf-8') as tw:
+                            csvreader = csv.DictReader(tw)
+                            row: dict
+                            i = 1
+                            while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
+                                if all(x is None for x in next_rows):
+                                    break
 
-                        case "COPYING":
-                            # _logger.debug(fo.read().decode())
-                            pass
-                        case "canonical_musicbrainz_data.csv":
-                            _logger.info("Importing Canonical Musicbrainz Metadata")
-                            with TextIOWrapper(fo, encoding='utf-8') as tw:
-                                csvreader = csv.DictReader(tw)
-                                row: dict
-                                i = 1
-                                while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
-                                    if all(x is None for x in next_rows):
-                                        break
+                                _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
+                                i = i + batch_size
 
-                                    _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
-                                    i = i + batch_size
+                                crms = [{
+                                    "canonical_recording_mbid": RecordingID(row['canonical_recording_mbid']),
+                                    "canonical_release_mbid": ReleaseID(row['canonical_release_mbid']),
+                                    "recording_mbid": RecordingID(row['recording_mbid'])
+                                } for row in next_rows if row is not None]
+                                stmt = sa.insert(CanonicalRecordingMapping)
+                                db_session.execute(stmt, crms)
 
-                                    acas = [{
-                                        "artist_credit_id": int(row['artist_credit_id']),
-                                        "artist_mbid": ArtistID(artist_mbid)
-                                    } for row in next_rows if row is not None for artist_mbid in
-                                        row['artist_mbids'].split(',')]
-                                    stmt = sa.insert(ArtistCreditArtist)
-                                    db_session.execute(stmt, acas)
+                                db_session.commit()
+                        _logger.debug("Done importing")
 
-                                    acs = [{
-                                        "artist_credit_id": int(row['artist_credit_id']),
-                                        "artist_credit_name": row['artist_credit_name']
-                                    } for row in next_rows if row is not None]
-                                    stmt = sa.insert(ArtistCredit)
-                                    db_session.execute(stmt, acs)
+                    case "canonical_release_redirect.csv":
+                        _logger.info("Importing Canonical Musicbrainz Release Redirects")
+                        with TextIOWrapper(fo, encoding='utf-8') as tw:
+                            csvreader = csv.DictReader(tw)
+                            row: dict
+                            i = 1
+                            while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
+                                if all(x is None for x in next_rows):
+                                    break
 
-                                    cmds = [{
-                                        "artist_credit_id": int(row['artist_credit_id']),
-                                        "release_mbid": ReleaseID(row['release_mbid']),
-                                        "release_name": row['release_name'],
-                                        "recording_mbid": RecordingID(row['recording_mbid']),
-                                        "recording_name": row['recording_name'],
-                                        "combined_lookup": row['combined_lookup'],
-                                        "score": int(row['score'])
-                                    } for row in next_rows if row is not None]
-                                    stmt = sa.insert(CanonicalMetadata)
+                                _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
+                                i = i + batch_size
 
-                                    db_session.execute(stmt, cmds)
+                                crms = [{
+                                    "canonical_release_mbid": ReleaseID(row['canonical_release_mbid']),
+                                    "release_group_mbid": ReleaseID(row['release_group_mbid']),
+                                    "release_mbid": ReleaseID(row['release_mbid'])
+                                } for row in next_rows if row is not None]
+                                stmt = sa.insert(CanonicalReleaseMapping)
+                                db_session.execute(stmt, crms)
 
-                                    db_session.commit()
-                            _logger.debug("Done importing")
+                                db_session.commit()
+                        _logger.debug("Done importing")
 
-                        case "canonical_recording_redirect.csv":
-                            _logger.info("Importing Canonical Musicbrainz Recording Redirects")
-                            with TextIOWrapper(fo, encoding='utf-8') as tw:
-                                csvreader = csv.DictReader(tw)
-                                row: dict
-                                i = 1
-                                while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
-                                    if all(x is None for x in next_rows):
-                                        break
-
-                                    _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
-                                    i = i + batch_size
-
-                                    crms = [{
-                                        "canonical_recording_mbid": RecordingID(row['canonical_recording_mbid']),
-                                        "canonical_release_mbid": ReleaseID(row['canonical_release_mbid']),
-                                        "recording_mbid": RecordingID(row['recording_mbid'])
-                                    } for row in next_rows if row is not None]
-                                    stmt = sa.insert(CanonicalRecordingMapping)
-                                    db_session.execute(stmt, crms)
-
-                                    db_session.commit()
-                            _logger.debug("Done importing")
-
-                        case "canonical_release_redirect.csv":
-                            _logger.info("Importing Canonical Musicbrainz Release Redirects")
-                            with TextIOWrapper(fo, encoding='utf-8') as tw:
-                                csvreader = csv.DictReader(tw)
-                                row: dict
-                                i = 1
-                                while next_rows := [next(csvreader, None) for i in range(0, batch_size)]:
-                                    if all(x is None for x in next_rows):
-                                        break
-
-                                    _logger.debug(f"Importing rows {i} - {i + batch_size - 1}")
-                                    i = i + batch_size
-
-                                    crms = [{
-                                        "canonical_release_mbid": ReleaseID(row['canonical_release_mbid']),
-                                        "release_group_mbid": ReleaseID(row['release_group_mbid']),
-                                        "release_mbid": ReleaseID(row['release_mbid'])
-                                    } for row in next_rows if row is not None]
-                                    stmt = sa.insert(CanonicalReleaseMapping)
-                                    db_session.execute(stmt, crms)
-
-                                    db_session.commit()
-                            _logger.debug("Done importing")
-
-                        case _:
-                            print(f"Don't know how to handle {filename}")
-                            break
+                    case _:
+                        print(f"Don't know how to handle {filename}")
+                        break
     db_session.execute(
         sa.insert(Configuration).values({"attribute": "import_complete", "value": 1}))
     db_session.commit()
