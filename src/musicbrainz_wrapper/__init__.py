@@ -1,9 +1,8 @@
 import logging
-import pathlib
 
 from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, MediumID, TrackID,
                         ReleaseType, ReleaseStatus)
-from .api import MBApi
+from .api import MBApi, set_datadir
 from .dataclasses import (Artist, ReleaseGroup, Release, Recording, Medium, Track, Work)
 from .search import (
     select_best_candidate,

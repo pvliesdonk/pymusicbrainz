@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -8,8 +9,6 @@ from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
-from src.musicbrainz_wrapper.api import set_datadir
-from src.musicbrainz_wrapper.canonical import get_canonical_dump_url
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
@@ -31,7 +30,7 @@ if __name__ == "__main__":
     req_session.mount('https://', HTTPAdapter(max_retries=retries))
     req_session.mount('file://', FileAdapter())
 
-    url = os.environ.get('MB_CANONICAL_DUMP_URL', get_canonical_dump_url())
+    url = os.environ.get('MB_CANONICAL_DUMP_URL', canonical.get_canonical_dump_url())
     canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
 
 
