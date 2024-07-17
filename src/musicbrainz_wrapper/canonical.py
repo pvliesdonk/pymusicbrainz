@@ -153,13 +153,7 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
     if db_session is None:
         db_session = get_session()
 
-    import_complete = db_session.scalar(
-        sa.select(Configuration).where(Configuration.attribute == "import_complete"))
-    if import_complete is not None and import_complete.value != 1:
-        _logger.warning("Incomplete import found")
-        force = True
-    else:
-        _logger.info("Database integrity intact")
+
 
     latest_import_config = db_session.scalar(
         sa.select(Configuration).where(Configuration.attribute == "latest_import"))
@@ -171,22 +165,32 @@ def get_canonical_dump(url: urllib3.util.Url = None, req_session: requests.Sessi
     else:
         _logger.info(f"Don't know how old the database is")
 
-    # try to determine version from filename:
-    match = re.search(r"dump-(\d\d\d\d\d\d\d\d)-\d\d\d\d\d\d", url.url)
-    if match is not None:
-
-        url_date = match.group(1)
-        url_date_asdate = parser.parse(url_date)
-        _logger.info(f"Found new database for date {url_date_asdate.date().isoformat()}")
-
-        if (not force) and (not latest_import_asdate is None) and (not url_date_asdate > latest_import_asdate):
-                _logger.info("Latest version of canonical data seems to be in the database already")
-                return
-        else:
-            _logger.info("Found newer database. Downloading.")
-
+    import_complete = db_session.scalar(
+        sa.select(Configuration).where(Configuration.attribute == "import_complete"))
+    if import_complete is not None and import_complete.value != 1:
+        _logger.warning("Incomplete import found")
+        force = True
     else:
-        _logger.debug(f"Could not determine date from url {url}")
+        _logger.info("Database integrity intact")
+
+
+    if not force:
+        # try to determine version from filename:
+        match = re.search(r"dump-(\d\d\d\d\d\d\d\d)-\d\d\d\d\d\d", url.url)
+        if match is not None:
+
+            url_date = match.group(1)
+            url_date_asdate = parser.parse(url_date)
+            _logger.info(f"Found new database for date {url_date_asdate.date().isoformat()}")
+
+            if (not latest_import_asdate is None) and (not url_date_asdate > latest_import_asdate):
+                    _logger.info("Latest version of canonical data seems to be in the database already")
+                    return
+            else:
+                _logger.info("Found newer database. Downloading.")
+
+        else:
+            _logger.debug(f"Could not determine date from url {url}")
 
 
     with tempfile.TemporaryFile() as temp_file:

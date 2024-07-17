@@ -1,4 +1,5 @@
 import logging
+import os
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -6,11 +7,14 @@ from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
+from src.musicbrainz_wrapper.api import set_datadir
 from src.musicbrainz_wrapper.canonical import get_canonical_dump_url
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
+
+    set_datadir(pathlib.Path(__file__).parent.absolute())
 
     MBApi.configure(search_cache_default=True, fetch_cache_default=True)
 
