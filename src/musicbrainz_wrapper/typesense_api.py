@@ -7,19 +7,31 @@ from urllib3.util import parse_url
 from .datatypes import ArtistID, ReleaseID, RecordingID
 from .util import flatten_title
 
-TYPESENSE_COLLECTION = "musicbrainz"
-
 _logger = logging.getLogger(__name__)
 
 _url: urllib3.util.Url = urllib3.util.parse_url("http://musicbrainz.int.liesdonk.nl:8108")
 _api_key: str = "xyz"
+
+_search_field: str = "combined"
+_collection: str = "musicbrainz"
+
+
 _client: typesense.Client | None = None
 
 
-def configure_typesense(url: urllib3.util.Url = None, api_key: str = None):
-    global _url, _api_key
+def configure_typesense(url: urllib3.util.Url = None, api_key: str = None, collection: str = None, search_field: str = None):
+    global _url, _api_key, _collection, _search_field
     if url is not None:
+        _logger.info(f"Now configured to access typesense at {url}")
         _url = url
+
+    if collection is not None:
+        _logger.info(f"Now configured to read typesense collection '{collection}'")
+        _collection = collection
+
+    if search_field is not None:
+        _logger.info(f"Now configured to search typesense field {search_field}")
+        _search_field = search_field
 
     if api_key is not None:
         _api_key = api_key
@@ -38,6 +50,7 @@ def get_client():
             'api_key': _api_key,
             'connection_timeout_seconds': 1000000
         })
+        _logger.debug("Connected Typesense client")
     return _client
 
 
@@ -46,9 +59,10 @@ def typesense_lookup(artist_name, recording_name):
 
     client = get_client()
     query = flatten_title(artist_name, recording_name)
-    search_parameters = {'q': query, 'query_by': "combined", 'prefix': 'no', 'num_typos': 5}
+    search_parameters = {'q': query, 'query_by': _search_field, 'prefix': 'no', 'num_typos': 5}
 
-    hits = client.collections[TYPESENSE_COLLECTION].documents.search(search_parameters)
+    _logger.debug(f"Search typesense collection {_collection} for '{_search_field}'~='{query}'.")
+    hits = client.collections[_collection].documents.search(search_parameters)
 
     output = []
     for hit in hits['hits']:

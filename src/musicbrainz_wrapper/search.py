@@ -62,6 +62,7 @@ def find_best_release_group(
         artist_query: str,
         title_query: str,
         mb_api: MBApi,
+        canonical: bool = True,
         date: int | datetime.date = None,
         file: pathlib.Path = None,
         cut_off: int = 90,
@@ -76,13 +77,18 @@ def find_best_release_group(
         if isinstance(date, int):
             date = datetime.date(date, 1, 1)
 
-        canonical_hits = mb_api.typesense_lookup(artist_query, title_query)
-        if len(canonical_hits) > 0:
-            rg: ReleaseGroup = canonical_hits[0]['release_group']
-            recording: Recording = canonical_hits[0]['recording']
-            release: Release = canonical_hits[0]['release']
-            track: Track = find_track_for_release_recording(release, recording)
-            return (rg, recording, release, track)
+        if canonical:
+            _logger.debug("Doing a lookup for canonical release")
+            canonical_hits = mb_api.typesense_lookup(artist_query, title_query)
+            if len(canonical_hits) > 0:
+                _logger.info("Found canonical release according to MusicBrainz Canonical dataset")
+                rg: ReleaseGroup = canonical_hits[0]['release_group']
+                recording: Recording = canonical_hits[0]['recording']
+                release: Release = canonical_hits[0]['release']
+                track: Track = find_track_for_release_recording(release, recording)
+                return (rg, recording, release, track)
+            else:
+                _logger.info("No canonical release found. Falling back to brute force search")
 
         candidates = find_best_release_group_by_search(artist_query, title_query, date, cut_off,
                                                        lookup_singles=lookup_singles, mb_api=mb_api)
