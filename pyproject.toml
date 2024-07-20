@@ -22,7 +22,8 @@ dependencies = [
     "zstandard",
     "sqlalchemy-utils",
     "requests-file",
-    "typesense"
+    "typesense",
+    "unidecode"
 
 ]
 
