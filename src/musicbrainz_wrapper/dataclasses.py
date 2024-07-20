@@ -807,7 +807,7 @@ class Track:
         return self.medium.release
 
     def __repr__(self):
-        return f"Track {self.position} of {self.recording.artist_credit_phrase} / {self.recording.title}"
+        return f"Track {self.position} of {self.recording.artist_credit_phrase} / {self.release.title} / {self.recording.title}"
 
 
 class Work:

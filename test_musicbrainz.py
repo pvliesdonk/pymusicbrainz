@@ -55,4 +55,6 @@ if __name__ == "__main__":
 
         x = mb.search_artists("DJ Paul Elstak")
         y = mb.search_recording("DJ Paul Elstak", "Rainbow in the Sky")
+
+        zzzz = find_best_release_group(artist_query="DJ Paul Elstak", title_query="Rainbow in the sky", mb_api=mb)
         pass

@@ -16,7 +16,8 @@ from .dataclasses import Artist, ReleaseGroup, Release, Recording, Work, Medium,
 _logger = logging.getLogger(__name__)
 
 
-def select_best_candidate(candidates: Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]) -> tuple[ReleaseGroup, Recording]:
+def select_best_candidate(candidates: Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]) -> tuple[
+    ReleaseGroup, Recording]:
     # {
     #     "studio_albums": sorted(albums),
     #     "eps": sorted(eps),
@@ -66,8 +67,7 @@ def find_best_release_group(
         cut_off: int = 90,
         lookup_singles: bool = True,
         search_cache: bool = True,
-        ) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
-
+) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
     if mb_api is None:
         mb_api = MBApi()
 
@@ -76,13 +76,21 @@ def find_best_release_group(
         if isinstance(date, int):
             date = datetime.date(date, 1, 1)
 
+        canonical_hits = mb_api.typesense_lookup(artist_query, title_query)
+        if len(canonical_hits) > 0:
+            rg: ReleaseGroup = canonical_hits[0]['release_group']
+            recording: Recording = canonical_hits[0]['recording']
+            release: Release = canonical_hits[0]['release']
+            track: Track = find_track_for_release_recording(release, recording)
+            return (rg, recording, release, track)
+
         candidates = find_best_release_group_by_search(artist_query, title_query, date, cut_off,
-                                                       lookup_singles=lookup_singles,mb_api=mb_api)
+                                                       lookup_singles=lookup_singles, mb_api=mb_api)
 
         if sum([len(x) for x in candidates.values()]) == 0:
             _logger.debug(f"Could not find a result by searching. Falling back to exhaustive artist search.")
             candidates = find_best_release_group_by_artist(artist_query, title_query, cut_off,
-                                                           lookup_singles=lookup_singles,  mb_api=mb_api)
+                                                           lookup_singles=lookup_singles, mb_api=mb_api)
 
         if sum([len(x) for x in candidates.values()]) == 0:
             _logger.debug(f"Could not find a result by exhaustive artist search. Trying Acoustid lookup")
@@ -115,6 +123,12 @@ def find_release_for_release_group_recording(rg: ReleaseGroup, recording: Record
             return r
 
 
+def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
+    for track in release.tracks:
+        if track.recording == recording:
+            return track
+
+
 def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: Recording) -> tuple[Track, Release]:
     for r in rg.releases:
         for track in r.tracks:
@@ -130,8 +144,7 @@ def find_best_release_group_by_recording_ids(
         cut_off: int = 97,
         lookup_singles: bool = True,
         mb_api: MBApi = None
-        ) -> Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]:
-
+) -> Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]:
     if mb_api is None:
         mb_api = MBApi()
 
@@ -265,8 +278,7 @@ def find_best_release_group_by_artist(
         cut_off: int = 90,
         lookup_singles: bool = True,
         mb_api: MBApi = None,
-        ) -> Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]:
-
+) -> Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]:
     artists_found = mb_api.search_artists(artist_query, cut_off=cut_off)
 
     if len(artists_found) == 0:
@@ -351,7 +363,6 @@ def find_best_release_group_by_search(
         mb_api: MBApi = None) -> (
         Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]
 ):
-
     if mb_api is None:
         mb_api = MBApi()
 
