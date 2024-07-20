@@ -5,10 +5,9 @@ from typing import Union
 import dateutil.parser
 import rapidfuzz
 
-from . import util
 from .datatypes import ArtistID, ReleaseGroupID, ReleaseType, ReleaseID, RecordingID, ReleaseStatus, WorkID, TrackID
 from .exceptions import MBApiError, IncomparableError
-from .util import split_artist
+from .util import split_artist, flatten_title
 from .api import MBApi
 
 import logging
@@ -183,8 +182,8 @@ class Artist:
         artist_split = split_artist(artist_query)
 
         artist_ratios = [rapidfuzz.process.extractOne(
-            util.flatten_title(artist_name=split),
-            [util.flatten_title(self.name)] + [util.flatten_title(a) for a in self.aliases],
+            flatten_title(artist_name=split),
+            [flatten_title(self.name)] + [flatten_title(a) for a in self.aliases],
             processor=rapidfuzz.utils.default_process
         )[1] for split in artist_split]
         artist_ratio = max(artist_ratios)

@@ -6,11 +6,10 @@ from typing import Mapping, Sequence
 import acoustid
 import rapidfuzz
 
-from . import util
 from .api import MBApi
 from .api import ACOUSTID_APIKEY
 from .exceptions import NotFoundError, MBApiError
-from .util import _fold_sort_candidates
+from .util import _fold_sort_candidates, flatten_title
 from .datatypes import RecordingID
 from .dataclasses import Artist, ReleaseGroup, Release, Recording, Work, Medium, Track
 
@@ -176,8 +175,8 @@ def find_best_release_group_by_recording_ids(
             for rg in artist.soundtracks:
                 for recording2 in rg.recordings:
                     ratio = rapidfuzz.fuzz.WRatio(
-                        util.flatten_title(recording.artist_credit_phrase,recording.title),
-                        util.flatten_title(recording2.artist_credit_phrase,recording2.title),
+                        flatten_title(recording.artist_credit_phrase,recording.title),
+                        flatten_title(recording2.artist_credit_phrase,recording2.title),
                         processor=rapidfuzz.utils.default_process,
                         score_cutoff=cut_off
                     )
@@ -187,8 +186,8 @@ def find_best_release_group_by_recording_ids(
             for rg in artist.studio_albums:
                 for recording2 in rg.recordings:
                     ratio = rapidfuzz.fuzz.WRatio(
-                        util.flatten_title(recording.artist_credit_phrase,recording.title),
-                        util.flatten_title(recording2.artist_credit_phrase,recording2.title),
+                        flatten_title(recording.artist_credit_phrase,recording.title),
+                        flatten_title(recording2.artist_credit_phrase,recording2.title),
                         processor=rapidfuzz.utils.default_process,
                         score_cutoff=cut_off
                     )
@@ -198,8 +197,8 @@ def find_best_release_group_by_recording_ids(
             for rg in artist.eps:
                 for recording2 in rg.recordings:
                     ratio = rapidfuzz.fuzz.WRatio(
-                        util.flatten_title(recording.artist_credit_phrase,recording.title),
-                        util.flatten_title(recording2.artist_credit_phrase,recording2.title),
+                        flatten_title(recording.artist_credit_phrase,recording.title),
+                        flatten_title(recording2.artist_credit_phrase,recording2.title),
                         processor=rapidfuzz.utils.default_process,
                         score_cutoff=cut_off
                     )
@@ -225,8 +224,8 @@ def find_best_release_group_by_recording_ids(
             for rg in artist.singles:
                 for recording2 in rg.recordings:
                     ratio = rapidfuzz.fuzz.WRatio(
-                        util.flatten_title(recording.artist_credit_phrase,recording.title),
-                        util.flatten_title(recording2.artist_credit_phrase,recording2.title),
+                        flatten_title(recording.artist_credit_phrase,recording.title),
+                        flatten_title(recording2.artist_credit_phrase,recording2.title),
                         processor=rapidfuzz.utils.default_process,
                         score_cutoff=cut_off
                     )
@@ -296,7 +295,7 @@ def find_best_release_group_by_artist(
 
     artist: Artist
     recording: Recording
-    me = util.flatten_title(artist_query,title_query)
+    me = flatten_title(artist_query,title_query)
 
     them = {}
     for artist in artists_found:
@@ -304,7 +303,7 @@ def find_best_release_group_by_artist(
             for recording in rg.recordings:
                 if recording.is_sane(artist_query=artist_query, title_query=title_query) and (
                         rg, recording) not in them.keys():
-                    them[(rg, recording)] = util.flatten_title(recording.artist_credit_phrase,recording.title)
+                    them[(rg, recording)] = flatten_title(recording.artist_credit_phrase,recording.title)
     result = rapidfuzz.process.extract(me, them, limit=None, score_cutoff=90, processor=rapidfuzz.utils.default_process)
     soundtracks = [x[2] for x in result]
 
@@ -314,7 +313,7 @@ def find_best_release_group_by_artist(
             for recording in rg.recordings:
                 if recording.is_sane(artist_query=artist_query, title_query=title_query) and (
                         rg, recording) not in them.keys():
-                    them[(rg, recording)] = util.flatten_title(recording.artist_credit_phrase,recording.title)
+                    them[(rg, recording)] = flatten_title(recording.artist_credit_phrase,recording.title)
     result = rapidfuzz.process.extract(me, them, limit=None, score_cutoff=90, processor=rapidfuzz.utils.default_process)
     albums = [x[2] for x in result]
 
@@ -324,7 +323,7 @@ def find_best_release_group_by_artist(
             for recording in rg.recordings:
                 if recording.is_sane(artist_query=artist_query, title_query=title_query) and (
                         rg, recording) not in them.keys():
-                    them[(rg, recording)] = util.flatten_title(recording.artist_credit_phrase,recording.title)
+                    them[(rg, recording)] = flatten_title(recording.artist_credit_phrase,recording.title)
     result = rapidfuzz.process.extract(me, them, limit=None, score_cutoff=90, processor=rapidfuzz.utils.default_process)
     eps = [x[2] for x in result]
 
@@ -348,7 +347,7 @@ def find_best_release_group_by_artist(
             for recording in rg.recordings:
                 if recording.is_sane(artist_query=artist_query, title_query=title_query) and (
                         rg, recording) not in them.keys():
-                    them[(rg, recording)] = util.flatten_title(recording.artist_credit_phrase,recording.title)
+                    them[(rg, recording)] = flatten_title(recording.artist_credit_phrase,recording.title)
     result = rapidfuzz.process.extract(me, them, limit=None, score_cutoff=90, processor=rapidfuzz.utils.default_process)
     singles = [x[2] for x in result]
 
