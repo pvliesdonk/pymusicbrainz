@@ -21,7 +21,8 @@ dependencies = [
     "pyacoustid",
     "zstandard",
     "sqlalchemy-utils",
-    "requests-file"
+    "requests-file",
+    "typesense"
 
 ]
 

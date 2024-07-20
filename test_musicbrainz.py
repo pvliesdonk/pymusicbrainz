@@ -10,6 +10,8 @@ from urllib3 import Retry
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
 
+from musicbrainz_wrapper import typesense_api
+
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
     logging.getLogger().setLevel(logging.DEBUG)
@@ -31,11 +33,15 @@ if __name__ == "__main__":
     req_session.mount('file://', FileAdapter())
 
     url = os.environ.get('MB_CANONICAL_DUMP_URL', canonical.get_canonical_dump_url())
-    canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
+
+
+    # canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
 
 
     mb: MBApi
     with MBApi() as mb:
+        hits = mb.typesense_lookup("DJ Paul Elstak", "Rainbow in the sky")
+
         mb.disable_mirror()
         a = mb.get_artist_by_id(ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d"))
         b = mb.get_release_group_by_id(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))

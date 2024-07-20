@@ -10,6 +10,7 @@ from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID,
     UNKNOWN_ARTIST_ID, ReleaseStatus
 from .exceptions import NotConfiguredError, MBApiError
 from .util import split_artist
+from .typesense_api import typesense_lookup
 
 _logger = logging.getLogger(__name__)
 
@@ -537,3 +538,15 @@ class MBApi:
             return result
         except musicbrainzngs.WebServiceError as ex:
             raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
+
+    def typesense_lookup(self, artist_name, recording_name):
+        hits = typesense_lookup(artist_name, recording_name)
+
+        output = []
+        for hit in hits:
+            hit['artists'] = [self.get_artist_by_id(x) for x in hit['artist_ids']]
+            hit['release'] = self.get_release_by_id(hit['release_id'])
+            hit['recording'] = self.get_recording_by_id(hit['recording_id'])
+            hit['release_group'] = hit['release'].release_group
+            output.append(hit)
+        return output

@@ -96,6 +96,8 @@ class CanonicalMetadata(Base):
 
 
 
+
+
 def init_database(echo_sql: bool = False):
     global _engine
     # Create a database connection
