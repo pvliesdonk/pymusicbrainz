@@ -13,7 +13,7 @@ from .search import (
     find_best_release_group_by_recording_ids,
     find_track_release_for_release_group_recording,
     find_best_release_group_by_artist)
-from .typesense_api import get_client, typesense_lookup
+from .typesense_api import configure_typesense, get_client, typesense_lookup
 
 _logger = logging.getLogger(__name__)
 logging.getLogger("musicbrainzngs").setLevel(logging.ERROR)

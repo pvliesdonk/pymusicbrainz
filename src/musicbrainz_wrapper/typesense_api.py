@@ -1,3 +1,5 @@
+import logging
+
 import typesense
 import urllib3.util
 from urllib3.util import parse_url
@@ -7,22 +9,33 @@ from .util import flatten_title
 
 TYPESENSE_COLLECTION = "musicbrainz"
 
+_logger = logging.getLogger(__name__)
+
+_url: urllib3.util.Url = urllib3.util.parse_url("http://musicbrainz.int.liesdonk.nl:8108")
+_api_key: str = "xyz"
 _client: typesense.Client | None = None
 
 
-def get_client(url: urllib3.util.Url = None, api_key: str = 'xyz'):
+def configure_typesense(url: urllib3.util.Url = None, api_key: str = None):
+    global _url, _api_key
+    if url is not None:
+        _url = url
+
+    if api_key is not None:
+        _api_key = api_key
+
+
+def get_client():
     global _client
     if _client is None:
-        if url is None:
-            url = parse_url("http://musicbrainz.int.liesdonk.nl:8108")
 
         _client = typesense.Client({
             'nodes': [{
-                'host': url.host,
-                'port': url.port,
-                'protocol': url.scheme,
+                'host': _url.host,
+                'port': _url.port,
+                'protocol': _url.scheme,
             }],
-            'api_key': api_key,
+            'api_key': _api_key,
             'connection_timeout_seconds': 1000000
         })
     return _client
