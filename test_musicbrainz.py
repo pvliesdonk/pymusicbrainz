@@ -9,10 +9,6 @@ from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
-from src.musicbrainz_wrapper.search import SearchType
-
-
-from musicbrainz_wrapper import typesense_api
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)

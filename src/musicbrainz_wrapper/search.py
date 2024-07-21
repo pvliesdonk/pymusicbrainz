@@ -141,11 +141,11 @@ def _search_release_group_by_recording_ids(
     if len(found_rgs) > 0:
         _logger.debug(f"Found {found_rgs[0][3]}")
         return {
-                "release_group": found_rgs[0][0],
-                "recording": found_rgs[0][1],
-                "release": found_rgs[0][2],
-                "track": found_rgs[0][3]
-            }
+            "release_group": found_rgs[0][0],
+            "recording": found_rgs[0][1],
+            "release": found_rgs[0][2],
+            "track": found_rgs[0][3]
+        }
     else:
         return None
 
@@ -243,16 +243,16 @@ def search_by_recording_id(
     return {k: v for k, v in results.items() if v is not None}
 
 
-def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) \
-        -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
-    if mb_api is None:
-        mb_api = MBApi()
+def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> list[RecordingID]:
+    if cut_off is None:
+        cut_off = 97
 
     recording_ids = []
     try:
         for score, recording_id, title, artist in acoustid.match(ACOUSTID_APIKEY, str(file)):
-            if score > (cut_off if cut_off is not None else 97) / 100:
-                recording_ids.append(recording_id)
+            if score > cut_off / 100:
+                recording_ids.append(RecordingID(recording_id))
+        return recording_ids
     except acoustid.FingerprintGenerationError as ex:
         _logger.error(f"Could not compute fingerprint for file '{file}'")
         raise MBApiError(f"Could not compute fingerprint for file '{file}'") from ex
@@ -260,7 +260,35 @@ def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) \
         _logger.error("Could not obtain Acoustid fingerprint from webservice")
         raise MBApiError("Could not obtain Acoustid fingerprint from webservice") from ex
 
+
+def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) \
+        -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
+    if mb_api is None:
+        mb_api = MBApi()
+
+    recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
     return search_by_recording_id(recording_ids, mb_api=mb_api)
+
+
+def search_fingerprint_by_type(
+        file: pathlib.Path,
+        search_type: SearchType,
+        mb_api: MBApi,
+        use_siblings: bool = True,
+        cut_off: int = None) -> Mapping[str, MusicBrainzObject]:
+    if mb_api is None:
+        mb_api = MBApi()
+
+    recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
+
+    return _search_release_group_by_recording_ids(
+        recording_ids=recording_ids,
+        mb_api=mb_api,
+        search_type=search_type,
+        use_siblings=use_siblings,
+        cut_off=cut_off
+    )
+
 
 def search_name(artist_query: str, title_query: str, mb_api: MBApi, cut_off: int = None) \
         -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
@@ -272,6 +300,31 @@ def search_name(artist_query: str, title_query: str, mb_api: MBApi, cut_off: int
 
     return search_by_recording_id(recording_ids, mb_api=mb_api)
 
+
+def search_name_by_type(
+        artist_query: str,
+        title_query: str,
+        search_type: SearchType,
+        mb_api: MBApi,
+        use_siblings: bool = True,
+        cut_off: int = None) -> Mapping[str, MusicBrainzObject]:
+    if mb_api is None:
+        mb_api = MBApi()
+
+    songs_found = mb_api.search_recording(
+        artist_query=artist_query,
+        title_query=title_query,
+        cut_off=cut_off)
+
+    recording_ids = [recording.id for recording in songs_found if recording.is_sane(artist_query, title_query)]
+
+    return _search_release_group_by_recording_ids(
+        recording_ids=recording_ids,
+        mb_api=mb_api,
+        search_type=search_type,
+        use_siblings=use_siblings,
+        cut_off=cut_off
+    )
 
 
 def find_best_release_group(
