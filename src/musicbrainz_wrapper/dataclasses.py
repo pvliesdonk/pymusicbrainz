@@ -552,12 +552,18 @@ class Release:
         if isinstance(item, RecordingID):
             return any([recording_id == item for recording_id in self.recording_ids])
 
-    def __lt__(self, other):
+    def __lt__(
+            self,
+            other):
         if isinstance(other, Release):
+            if self.release_group != other.release_group:
+                return self.release_group.first_release_date < other.release_group.first_release_date
+
             if self.date is not None and other.date is not None:
                 return self.date < other.date
             else:
-                raise IncomparableError(self, other)
+                return True
+                #raise IncomparableError(self, other)
         return NotImplemented
 
     def __hash__(self):

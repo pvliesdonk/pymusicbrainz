@@ -9,6 +9,8 @@ from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
 from src.musicbrainz_wrapper import canonical
+from src.musicbrainz_wrapper.search import SearchType
+
 
 from musicbrainz_wrapper import typesense_api
 
@@ -54,6 +56,21 @@ if __name__ == "__main__":
         zz = e.performance_ids
 
         x = mb.search_artists("DJ Paul Elstak")
+
+        a1 = search.search_canonical_release("DJ Paul Elstak", "Rainbow in the Sky", mb_api=mb)
+
+        a2 = search.search_studio_albums_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
+        print(a2)
+        a3 = search.search_soundtracks_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
+        print(a3)
+        a4 = search.search_singles_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
+        print(a4)
+        a5 = search.search_eps_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
+        print(a5)
+        a6 = search.search_release_groups_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
+        print(a6)
+
+
         y = mb.search_recording("DJ Paul Elstak", "Rainbow in the Sky")
 
         zzzz = find_best_release_group(artist_query="DJ Paul Elstak", title_query="Rainbow in the sky", mb_api=mb)
