@@ -12,7 +12,7 @@ from .api import ACOUSTID_APIKEY
 from .exceptions import NotFoundError, MBApiError
 from .util import _fold_sort_candidates, flatten_title
 from .datatypes import RecordingID
-from .dataclasses import Artist, ReleaseGroup, Release, Recording, Work, Medium, Track
+from .dataclasses import Artist, ReleaseGroup, Release, Recording, Work, Medium, Track, MusicBrainzObject
 
 _logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ def search_canonical_release(
         artist_query: str,
         title_query: str,
         mb_api: MBApi
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     if mb_api is None:
         mb_api = MBApi()
 
@@ -83,11 +83,13 @@ def search_canonical_release(
         recording: Recording = canonical_hits[0]['recording']
         release: Release = canonical_hits[0]['release']
         track: Track = find_track_for_release_recording(release, recording)
-        return rg, recording, release, track
+        return {"release_group": rg,
+                "recording": recording,
+                "release": release,
+                "track": track
+                }
     else:
-        return None, None, None, None
-
-
+        return None
 
 
 def _search_release_group_by_recording_ids(
@@ -96,7 +98,7 @@ def _search_release_group_by_recording_ids(
         search_type: SearchType,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     if mb_api is None:
         mb_api = MBApi()
 
@@ -138,16 +140,22 @@ def _search_release_group_by_recording_ids(
     found_rgs = sorted(found_rgs, key=lambda x: x[2])
     if len(found_rgs) > 0:
         _logger.debug(f"Found {found_rgs[0][3]}")
-        return found_rgs[0]
+        return {
+                "release_group": found_rgs[0][0],
+                "recording": found_rgs[0][1],
+                "release": found_rgs[0][2],
+                "track": found_rgs[0][3]
+            }
     else:
-        return None, None, None, None
+        return None
+
 
 def search_studio_albums_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         mb_api=mb_api,
@@ -162,7 +170,7 @@ def search_soundtracks_by_recording_ids(
         mb_api: MBApi,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         mb_api=mb_api,
@@ -177,7 +185,7 @@ def search_eps_by_recording_ids(
         mb_api: MBApi,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         mb_api=mb_api,
@@ -192,7 +200,7 @@ def search_singles_by_recording_ids(
         mb_api: MBApi,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         mb_api=mb_api,
@@ -207,7 +215,7 @@ def search_release_groups_by_recording_ids(
         mb_api: MBApi,
         use_siblings: bool = True,
         cut_off=97
-) -> tuple[ReleaseGroup, Recording, Release, Track] | tuple[None, None, None, None]:
+) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         mb_api=mb_api,
@@ -217,9 +225,26 @@ def search_release_groups_by_recording_ids(
     )
 
 
+def search_by_recording_id(
+        recording_ids: RecordingID | Sequence[RecordingID],
+        mb_api: MBApi,
+        use_siblings: bool = True,
+        cut_off=97
 
-def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) -> tuple[
-    ReleaseGroup, Recording, Release, Track]:
+) -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
+    results = {
+        search_type: _search_release_group_by_recording_ids(
+            recording_ids=recording_ids,
+            mb_api=mb_api,
+            search_type=SearchType(search_type),
+            use_siblings=use_siblings,
+            cut_off=cut_off) for search_type in SearchType}
+
+    return {k: v for k, v in results.items() if v is not None}
+
+
+def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) \
+        -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
     if mb_api is None:
         mb_api = MBApi()
 
@@ -235,12 +260,18 @@ def search_fingerprint(file: pathlib.Path, mb_api: MBApi, cut_off: int = None) -
         _logger.error("Could not obtain Acoustid fingerprint from webservice")
         raise MBApiError("Could not obtain Acoustid fingerprint from webservice") from ex
 
-    studio_album = search_studio_albums_by_recording_ids(recording_ids, mb_api)
-    single = search_singles_by_recording_ids(recording_ids,mb_api)
-    ep = search_eps_by_recording_ids(recording_ids, mb_api)
-    soundtrack = search_soundtracks_by_recording_ids(recording_ids, mb_api)
+    return search_by_recording_id(recording_ids, mb_api=mb_api)
 
-    raise NotFoundError("TO be finished")
+def search_name(artist_query: str, title_query: str, mb_api: MBApi, cut_off: int = None) \
+        -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
+    if mb_api is None:
+        mb_api = MBApi()
+
+    songs_found = mb_api.search_recording(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
+    recording_ids = []
+
+    return search_by_recording_id(recording_ids, mb_api=mb_api)
+
 
 
 def find_best_release_group(

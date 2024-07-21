@@ -59,16 +59,7 @@ if __name__ == "__main__":
 
         a1 = search.search_canonical_release("DJ Paul Elstak", "Rainbow in the Sky", mb_api=mb)
 
-        a2 = search.search_studio_albums_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
-        print(a2)
-        a3 = search.search_soundtracks_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
-        print(a3)
-        a4 = search.search_singles_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
-        print(a4)
-        a5 = search.search_eps_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
-        print(a5)
-        a6 = search.search_release_groups_by_recording_ids(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
-        print(a6)
+        s2 = search.search_by_recording_id(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
 
 
         y = mb.search_recording("DJ Paul Elstak", "Rainbow in the Sky")

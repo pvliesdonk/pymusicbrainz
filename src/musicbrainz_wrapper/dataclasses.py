@@ -14,8 +14,10 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
+class MusicBrainzObject:
+    pass
 
-class Artist:
+class Artist(MusicBrainzObject):
 
     def __init__(self, json: dict,
                  search_cache: bool = True,
@@ -224,7 +226,7 @@ class Artist:
         return hash(self.id)
 
 
-class ReleaseGroup:
+class ReleaseGroup(MusicBrainzObject):
 
     def __init__(self, json: dict,
                  search_cache: bool = True,
@@ -406,7 +408,7 @@ class ReleaseGroup:
         return hash(self.id)
 
 
-class Release:
+class Release(MusicBrainzObject):
     def __init__(self, json: dict,
                  search_cache: bool = True,
                  fetch_cache: bool = True):
@@ -570,7 +572,7 @@ class Release:
         return hash(self.id)
 
 
-class Recording:
+class Recording(MusicBrainzObject):
     def __init__(self, json: dict,
                  search_cache: bool = True,
                  fetch_cache: bool = True):
@@ -720,7 +722,7 @@ class Recording:
         return hash(self.id)
 
 
-class Medium:
+class Medium(MusicBrainzObject):
 
     def __init__(self, release: Release, json: dict,
                  search_cache: bool = True,
@@ -749,7 +751,7 @@ class Medium:
         return f"Medium: {self.release.artist_credit_phrase} - {self.release.title} - {self.title}"
 
 
-class Track:
+class Track(MusicBrainzObject):
 
     def __init__(self, medium: Medium, json: dict,
                  search_cache: bool = True,
@@ -816,7 +818,7 @@ class Track:
         return f"Track {self.position} of {self.recording.artist_credit_phrase} / {self.release.title} / {self.recording.title}"
 
 
-class Work:
+class Work(MusicBrainzObject):
     def __init__(self, json: dict,
                  search_cache: bool = True,
                  fetch_cache: bool = True):
