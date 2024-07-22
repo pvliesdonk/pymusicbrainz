@@ -58,7 +58,7 @@ if __name__ == "__main__":
         s2 = search.search_by_recording_id(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"), mb_api=mb)
 
 
-        y = mb.search_recording("DJ Paul Elstak", "Rainbow in the Sky")
+        y = search.search_name("DJ Paul Elstak", "Rainbow in the Sky", mb_api=mb)
 
         zzzz = find_best_release_group(artist_query="DJ Paul Elstak", title_query="Rainbow in the sky", mb_api=mb)
         print(zzzz)

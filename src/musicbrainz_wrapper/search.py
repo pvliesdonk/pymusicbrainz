@@ -18,11 +18,13 @@ _logger = logging.getLogger(__name__)
 
 
 class SearchType(enum.StrEnum):
+    CANONICAL = "canonical"
     STUDIO_ALBUM = "studio_album"
     SINGLE = "single"
     SOUNDTRACK = "soundtrack"
     EP = "ep"
     ALL = "all"
+
 
 
 def select_best_candidate(candidates: Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]) -> tuple[
@@ -119,6 +121,8 @@ def _search_release_group_by_recording_ids(
                     recordings.append(sibling)
 
     match search_type:
+        case SearchType.CANONICAL:
+            return None
         case SearchType.STUDIO_ALBUM:
             search_field = "studio_albums"
         case SearchType.SINGLE:
@@ -301,11 +305,15 @@ def search_name(artist_query: str, title_query: str, mb_api: MBApi, cut_off: int
     if cut_off is None:
         cut_off = 90
 
+    # TODO: canonical lookup
+    canonical = search_canonical_release(artist_query=artist_query, title_query=title_query, mb_api=mb_api)
+
     songs_found = mb_api.search_recording(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
-    recording_ids = []
+    recording_ids = [recording.id for recording in songs_found if recording.is_sane(artist_query, title_query)]
+    result =  search_by_recording_id(recording_ids, mb_api=mb_api)
+    result[SearchType.CANONICAL] = canonical
 
-    return search_by_recording_id(recording_ids, mb_api=mb_api)
-
+    return result
 
 def search_name_by_type(
         artist_query: str,
