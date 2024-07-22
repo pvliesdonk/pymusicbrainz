@@ -97,10 +97,13 @@ def _search_release_group_by_recording_ids(
         mb_api: MBApi,
         search_type: SearchType,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     if mb_api is None:
         mb_api = MBApi()
+
+    if cut_off is None:
+        cut_off = 97
 
     # get actual MB objects
     if isinstance(recording_ids, RecordingID):
@@ -154,7 +157,7 @@ def search_studio_albums_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -169,7 +172,7 @@ def search_soundtracks_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -184,7 +187,7 @@ def search_eps_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -199,7 +202,7 @@ def search_singles_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -214,7 +217,7 @@ def search_release_groups_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 ) -> Mapping[str, MusicBrainzObject] | None:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -229,7 +232,7 @@ def search_by_recording_id(
         recording_ids: RecordingID | Sequence[RecordingID],
         mb_api: MBApi,
         use_siblings: bool = True,
-        cut_off=97
+        cut_off: int = None
 
 ) -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
     results = {
@@ -294,6 +297,9 @@ def search_name(artist_query: str, title_query: str, mb_api: MBApi, cut_off: int
         -> Mapping[SearchType, Mapping[str, MusicBrainzObject]]:
     if mb_api is None:
         mb_api = MBApi()
+
+    if cut_off is None:
+        cut_off = 90
 
     songs_found = mb_api.search_recording(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
     recording_ids = []
