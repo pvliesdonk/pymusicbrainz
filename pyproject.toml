@@ -23,7 +23,9 @@ dependencies = [
     "sqlalchemy-utils",
     "requests-file",
     "typesense",
-    "unidecode"
+    "unidecode",
+    "mbdata",
+    "psycopg2-binary"
 
 ]
 

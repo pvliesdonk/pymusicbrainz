@@ -22,6 +22,7 @@ _DEFAULT_API_URL: str = "musicbrainz.org"
 _DEFAULT_HTTPS: bool = True
 _DEFAULT_RATE_LIMIT: bool = True
 
+_DEFAULT_DB_URI: str = 'postgresql://musicbrainz:musicbrainz@127.0.0.1/musicbrainz'
 
 ACOUSTID_APIKEY = "7z40OrGgVS"
 

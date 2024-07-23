@@ -8,7 +8,7 @@ from requests_file import FileAdapter
 from urllib3 import Retry
 
 from src.musicbrainz_wrapper import *
-from src.musicbrainz_wrapper import canonical
+from src.musicbrainz_wrapper import db
 
 if __name__ == "__main__":
     logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
@@ -18,23 +18,17 @@ if __name__ == "__main__":
 
     MBApi.configure(search_cache_default=True, fetch_cache_default=True)
 
-    db_session = canonical.get_session()
+    db_session = db.get_db_session()
 
-    req_session = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=0.1,
-        status_forcelist=[502, 503, 504],
-        allowed_methods={'POST'},
-    )
-    req_session.mount('https://', HTTPAdapter(max_retries=retries))
-    req_session.mount('file://', FileAdapter())
+    a = Artist(ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d"))
+    a_alias = a.aliases
+    a_rgs = a.release_groups
+    a_albums = a.albums
+    a_singles = a.singles
+    a_eps = a.eps
 
-    url = os.environ.get('MB_CANONICAL_DUMP_URL', canonical.get_canonical_dump_url())
-
-
-    # canonical.get_canonical_dump(url = url, req_session=req_session, db_session=db_session)
-
+    a_sa = a.studio_albums
+    exit()
 
     mb: MBApi
     with MBApi() as mb:
