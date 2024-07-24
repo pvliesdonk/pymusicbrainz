@@ -20,14 +20,12 @@ if __name__ == "__main__":
 
     db_session = db.get_db_session()
 
-    a = Artist(ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d"))
-    a_alias = a.aliases
-    a_rgs = a.release_groups
-    a_albums = a.albums
-    a_singles = a.singles
-    a_eps = a.eps
 
-    a_sa = a.studio_albums
+    a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
+    a_alias = a.aliases
+    a_soundtacks = a.soundtracks
+    a.soundtracks[0].first_release_date
+    a.soundtracks[0].aliases
     exit()
 
     mb: MBApi

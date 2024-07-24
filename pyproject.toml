@@ -24,7 +24,7 @@ dependencies = [
     "requests-file",
     "typesense",
     "unidecode",
-    "mbdata",
+    "mbdata @ git+https://github.com/pvliesdonk/mbdata.git",
     "psycopg2-binary"
 
 ]

@@ -30,6 +30,6 @@ def _fold_sort_candidates(candidates: Sequence[tuple["ReleaseGroup", "Recording"
     t2 = sorted([(k, sorted(v)) for k, v in t1.items()], key=lambda x: x[0])
     return t2
 
-def flatten_title(artist_name = "", recording_name = ""):
+def flatten_title(artist_name = "", recording_name = "", album_name = ""):
     """ Given the artist name and recording name, return a combined_lookup string """
-    return unidecode(re.sub(r'[^\w]+', '', artist_name + recording_name).lower())
+    return unidecode(re.sub(r'[^\w]+', '', artist_name + album_name + recording_name).lower())

@@ -23,6 +23,31 @@ class ReleaseType(enum.StrEnum):
     MIXTAPE = "Mixtape/Street"
     DEMO = "Demo"
     AUDIODRAMA = "Audio drama"
+    FIELDRECORDING = "Field recording"
+
+
+PRIMARY_TYPES = {
+    ReleaseType.ALBUM: 1,
+    ReleaseType.SINGLE: 2,
+    ReleaseType.EP: 3,
+    ReleaseType.OTHER: 11,
+    ReleaseType.BROADCAST: 12}
+
+SECONDARY_TYPES = {
+    ReleaseType.COMPILATION: 1,
+    ReleaseType.SOUNDTRACK: 2,
+    ReleaseType.SPOKENWORD: 3,
+    ReleaseType.INTERVIEW: 4,
+    ReleaseType.AUDIOBOOK: 5,
+    ReleaseType.LIVE: 6,
+    ReleaseType.REMIX: 7,
+    ReleaseType.DJ_MIX: 8,
+    ReleaseType.MIXTAPE: 9,
+    ReleaseType.DEMO: 10,
+    ReleaseType.AUDIODRAMA: 11,
+    ReleaseType.FIELDRECORDING: 12
+
+}
 
 
 class ReleaseStatus(enum.StrEnum):
