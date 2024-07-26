@@ -22,10 +22,9 @@ if __name__ == "__main__":
 
 
     a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
-    a_alias = a.aliases
-    a_soundtacks = a.soundtracks
-    a.soundtracks[0].first_release_date
-    a.soundtracks[0].aliases
+    b = ReleaseGroup(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))
+    c = Release(ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922"))
+    d = Recording(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
     exit()
 
     mb: MBApi
