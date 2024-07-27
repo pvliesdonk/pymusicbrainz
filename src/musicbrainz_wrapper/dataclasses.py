@@ -11,7 +11,7 @@ import rapidfuzz
 
 from . import util
 from .datatypes import ArtistID, ReleaseGroupID, ReleaseType, ReleaseID, RecordingID, ReleaseStatus, WorkID, TrackID, \
-    MBID, PRIMARY_TYPES, SECONDARY_TYPES
+    MBID, PRIMARY_TYPES, SECONDARY_TYPES, MediumID
 from .db import get_db_session
 from .exceptions import MBApiError, IncomparableError
 from .api import MBApi
@@ -30,20 +30,15 @@ class MusicBrainzObject(ABC):
 class Artist(MusicBrainzObject):
 
     def __init__(self,
-                 artist_id: ArtistID = None,
-                 mb_artist: mb_models.Artist = None,
-                 artist_db_id: int = None) -> None:
+                 in_obj: ArtistID | mb_models.Artist | str) -> None:
         with get_db_session() as session:
-            if mb_artist is not None:
-                session.add(mb_artist)
-                a = mb_artist
-            elif artist_db_id is not None:
-                a = session.get(mb_models.Artist, artist_db_id)
-            elif artist_id is not None:
-                stmt = sa.select(mb_models.Artist).where(mb_models.Artist.gid == str(artist_id))
-                a: mb_models.Artist = session.scalar(stmt)
+            if isinstance(in_obj, mb_models.Artist):
+                a = session.merge(in_obj)
             else:
-                raise MBApiError("No parameters given")
+                if isinstance(in_obj, str):
+                    in_obj = ArtistID(in_obj)
+                stmt = sa.select(mb_models.Artist).where(mb_models.Artist.gid == str(in_obj))
+                a: mb_models.Artist = session.scalar(stmt)
 
             self.id: ArtistID = ArtistID(str(a.gid))
             self._db_id: int = a.id
@@ -210,20 +205,17 @@ class Artist(MusicBrainzObject):
 class ReleaseGroup(MusicBrainzObject):
 
     def __init__(self,
-                 release_group_id: ReleaseGroupID = None,
-                 mb_release_group: mb_models.ReleaseGroup = None,
-                 release_group_db_id: int = None) -> None:
+                 in_obj: ReleaseGroupID | mb_models.ReleaseGroup | str) -> None:
         with get_db_session() as session:
-            if mb_release_group is not None:
-                session.add(mb_release_group)
-                rg = mb_release_group
-            elif release_group_db_id is not None:
-                rg = session.get(mb_models.ReleaseGroup, release_group_db_id)
-            elif release_group_id is not None:
-                stmt = sa.select(mb_models.ReleaseGroup).where(mb_models.ReleaseGroup.gid == str(release_group_id))
-                rg: mb_models.ReleaseGroup = session.scalar(stmt)
+            if isinstance(in_obj, mb_models.ReleaseGroup):
+
+                rg: mb_models.ReleaseGroup = session.merge(in_obj)
             else:
-                raise MBApiError("No parameters given")
+                if isinstance(in_obj, str):
+                    in_obj = ReleaseGroupID(in_obj)
+                stmt = sa.select(mb_models.ReleaseGroup).where(mb_models.ReleaseGroup.gid == str(in_obj))
+                rg: mb_models.ReleaseGroup = session.scalar(stmt)
+
 
             self.id: ReleaseGroupID = ReleaseGroupID(str(rg.gid))
             self._db_id: int = rg.id
@@ -362,20 +354,16 @@ class ReleaseGroup(MusicBrainzObject):
 class Release(MusicBrainzObject):
 
     def __init__(self,
-                 release_id: ReleaseID = None,
-                 mb_release: mb_models.Release = None,
-                 release_db_id: int = None) -> None:
+                 in_obj: ReleaseID | mb_models.Release | str) -> None:
         with get_db_session() as session:
-            if mb_release is not None:
-                session.add(mb_release)
-                rel = mb_release
-            elif release_db_id is not None:
-                rel = session.get(mb_models.Release, release_db_id)
-            elif release_id is not None:
-                stmt = sa.select(mb_models.Release).where(mb_models.Release.gid == str(release_id))
-                rel: mb_models.Release = session.scalar(stmt)
+            if isinstance(in_obj, mb_models.Release):
+                rel: mb_models.Release = session.merge(in_obj)
             else:
-                raise MBApiError("No parameters given")
+                if isinstance(in_obj, str):
+                    in_obj = ReleaseID(in_obj)
+                stmt = sa.select(mb_models.Release).where(mb_models.Release.gid == str(in_obj))
+                rel: mb_models.Release = session.scalar(stmt)
+
 
             self.id: ReleaseID = ReleaseID(str(rel.gid))
             self._db_id: int = rel.id
@@ -492,20 +480,15 @@ class Release(MusicBrainzObject):
 class Recording(MusicBrainzObject):
 
     def __init__(self,
-                 recording_id: RecordingID = None,
-                 mb_recording: mb_models.Recording = None,
-                 recording_db_id: int = None) -> None:
+                 in_obj: RecordingID | mb_models.Recording | str) -> None:
         with get_db_session() as session:
-            if mb_recording is not None:
-                session.add(mb_recording)
-                rec = mb_recording
-            elif recording_db_id is not None:
-                rec = session.get(mb_models.Recording, recording_db_id)
-            elif recording_id is not None:
-                stmt = sa.select(mb_models.Recording).where(mb_models.Recording.gid == str(recording_id))
-                rec: mb_models.Recording = session.scalar(stmt)
+            if isinstance(in_obj, mb_models.Recording):
+                rec: mb_models.Recording = session.merge(in_obj)
             else:
-                raise MBApiError("No parameters given")
+                if isinstance(in_obj, str):
+                    in_obj = RecordingID(in_obj)
+                stmt = sa.select(mb_models.Recording).where(mb_models.Recording.gid == str(in_obj))
+                rec: mb_models.Recording = session.scalar(stmt)
 
             self.id: RecordingID = RecordingID(str(rec.gid))
             self._db_id: int = rec.id
@@ -529,52 +512,46 @@ class Recording(MusicBrainzObject):
                     result.append(ra.name)
         return result
 
-    @cached_property
-    def performance_of_id(self) -> WorkID | None:
-        if 'work-relation-list' not in self._json.keys():
-            return None
-        for a in self._json['work-relation-list']:
-            if 'work' in a.keys() and a['direction'] == 'forward' and a['type'] == 'performance':
-                return WorkID(a['work']['id'])
 
     @cached_property
     def performance_type(self) -> list[str]:
-        l = []
-        if 'work-relation-list' not in self._json.keys():
-            return l
-
-        for a in self._json['work-relation-list']:
-            if 'work' in a.keys() and a['direction'] == 'forward' and a['type'] == 'performance':
-                if 'attribute-list' in a.keys():
-                    for att in a['attribute-list']:
-                        if att not in l:
-                            l.append(att)
-        return l
+        p = self.performance_of
+        return self.performance_type
 
     @cached_property
-    def performance_of(self) -> Union["Work", None]:
-        if self.performance_of_id is not None:
-            return self._mb_api.get_work_by_id(self.performance_of_id)
-        return None
+    def performance_of(self) -> "Work":
+        with get_db_session() as session:
+            stmt = sa.select(mb_models.LinkRecordingWork).\
+                where(mb_models.LinkRecordingWork.entity0_id == str(self._db_id))
+            res: mb_models.LinkRecordingWork = session.scalar(stmt)
+            w = get_work(res.work)
 
-    @cached_property
-    def sibling_ids(self) -> list[RecordingID]:
-        if self.performance_of is not None:
-            if len(self.performance_type) == 0:
-                return self.performance_of.performance_ids['no-attr']
-            else:
-                _logger.debug(f"Skipping sibling recordings because recording is a {'/'.join(self.performance_type)}")
-        return []
+            stmt = sa.select(mb_models.LinkAttribute).\
+                where(mb_models.LinkAttribute.link == res.link)
+            res2: list[mb_models.LinkAttribute] = session.scalars(stmt).all()
+            types = []
+            for att in res2:
+                types.append(att.attribute_type.name)
+            self.performance_type = types
+
+        return w
 
     @cached_property
     def siblings(self) -> list["Recording"]:
-        _logger.debug(
-            f"Fetching {len(self.sibling_ids)} siblings for recording '{self.artist_credit_phrase}'- '{self.title}' [{self.id}]")
-        return [self._mb_api.get_recording_by_id(x) for x in self.sibling_ids]
+        result = []
+        if len(self.performance_type) > 0:
+            _logger.error(f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
+        else:
+            _logger.error("Appending all siblings, which may be too much")
+            work = self.performance_of
+            for r in work.performances:
+                if r not in result:
+                    result.append(r)
+        return result
 
     def __repr__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}]"
+        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}]" + ("/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
     def __eq__(self, other):
         if isinstance(other, Recording):
@@ -597,8 +574,8 @@ class Recording(MusicBrainzObject):
         artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
 
         title_ratio = rapidfuzz.process.extractOne(
-            f"{title_query}",
-            [self.title] + self.aliases,
+            util.flatten_title(recording_name=title_query),
+            [util.flatten_title(recording_name=self.title)] + [util.flatten_title(recording_name=a) for a in self.aliases],
             processor=rapidfuzz.utils.default_process
         )[1]
 
@@ -619,28 +596,18 @@ class Recording(MusicBrainzObject):
 
 class Medium(MusicBrainzObject):
 
-    def __init__(self, release: Release, json: dict,
-                 search_cache: bool = True,
-                 fetch_cache: bool = True):
-        self._release: Release = release
-        self._json: dict = json
-        self._mb_api: MBApi = MBApi(search_cache=search_cache, fetch_cache=fetch_cache)
+    def __init__(self,
+                 in_obj: mb_models.Medium) -> None:
+        with get_db_session() as session:
+            if isinstance(in_obj, mb_models.Medium):
+                m: mb_models.Medium = session.merge(in_obj)
 
-    @cached_property
-    def title(self) -> str:
-        return self._json["title"]
+            self._db_id: int = m.id
+            self.title: str = m.name
+            self.position: int = m.position
+            self.release: Release = get_release(m.release)
+            self.tracks: list[Track] = [get_track(t) for t in m.tracks]
 
-    @cached_property
-    def position(self) -> str:
-        return self._json["position"]
-
-    @cached_property
-    def release(self) -> Release:
-        return self._release
-
-    @cached_property
-    def tracks(self) -> list["Track"]:
-        return [Track(self, t) for t in self._json["track-list"]]
 
     def __repr__(self):
         return f"Medium: {self.release.artist_credit_phrase} - {self.release.title} - {self.title}"
@@ -649,20 +616,15 @@ class Medium(MusicBrainzObject):
 class Track(MusicBrainzObject):
 
     def __init__(self,
-                 track_id: TrackID = None,
-                 mb_track: mb_models.Track = None,
-                 track_db_id: int = None) -> None:
+                 in_obj: TrackID | mb_models.Track | str) -> None:
         with get_db_session() as session:
-            if mb_track is not None:
-                session.add(mb_track)
-                tr = mb_track
-            elif track_db_id is not None:
-                tr = session.get(mb_models.Track, track_db_id)
-            elif track_id is not None:
-                stmt = sa.select(mb_models.Track).where(mb_models.Track.gid == str(track_id))
-                tr: mb_models.Track = session.scalar(stmt)
+            if isinstance(in_obj, mb_models.Track):
+                tr: mb_models.Track = session.merge(in_obj)
             else:
-                raise MBApiError("No parameters given")
+                if isinstance(in_obj, str):
+                    in_obj = TrackID(in_obj)
+                stmt = sa.select(mb_models.Track).where(mb_models.Track.gid == str(in_obj))
+                a: mb_models.Track = session.scalar(stmt)
 
             self.id: TrackID = TrackID(str(tr.gid))
             self._db_id: int = tr.id
@@ -693,20 +655,22 @@ class Track(MusicBrainzObject):
 
 
 class Work(MusicBrainzObject):
-    def __init__(self, json: dict,
-                 search_cache: bool = True,
-                 fetch_cache: bool = True):
-        self._json = json['work']
-        self._id: WorkID = self._json['id']
-        self._mb_api: MBApi = MBApi(search_cache=search_cache, fetch_cache=fetch_cache)
+    def __init__(self,
+                 in_obj: WorkID | mb_models.Work | str) -> None:
+        with get_db_session() as session:
+            if isinstance(in_obj, mb_models.Work):
+                w: mb_models.Work = session.merge(in_obj)
+            else:
+                if isinstance(in_obj, str):
+                    in_obj = WorkID(in_obj)
+                stmt = sa.select(mb_models.Work).where(mb_models.Work.gid == str(in_obj))
+                w: mb_models.Work = session.scalar(stmt)
 
-    @cached_property
-    def id(self) -> WorkID:
-        return self._id
+            self.id: WorkID = WorkID(str(w.gid))
+            self._db_id: int = w.id
+            self.title: str = w.name
+            self.disambiguation: str = w.comment
 
-    @cached_property
-    def title(self) -> str:
-        return self._json["title"]
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -742,10 +706,6 @@ class Work(MusicBrainzObject):
                   self.performance_ids.keys()}
         return result
 
-    @cached_property
-    def disambiguation(self) -> str | None:
-        return self._json["disambiguation"] if "disambiguation" in self._json.keys() else None
-
     def __repr__(self):
         return f"Work:  {self.title}  [{self.id}]"
 
@@ -766,80 +726,124 @@ class Work(MusicBrainzObject):
 _object_cache = {}
 
 
-def get_artist(artist_id: ArtistID = None,
-               mb_artist: mb_models.Artist = None) -> Artist:
+def get_artist(in_obj: ArtistID | str | mb_models.Artist) -> Artist:
     global _object_cache
-    if mb_artist is not None:
-        if ArtistID(mb_artist.gid) in _object_cache.keys():
-            return _object_cache[ArtistID(mb_artist.gid)]
+    if isinstance(in_obj, mb_models.Artist):
+        if ArtistID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[ArtistID(str(in_obj.gid))]
         else:
-            a = Artist(mb_artist=mb_artist)
-            _object_cache[ArtistID(mb_artist.gid)] = a
-    elif artist_id is not None:
-        if artist_id in _object_cache.keys():
-            return _object_cache[ArtistID(mb_artist.gid)]
-        else:
-            a = Artist(artist_id=artist_id)
-            _object_cache[ArtistID(mb_artist.gid)] = a
+            a = Artist(in_obj)
+            _object_cache[ArtistID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+            in_obj = ArtistID(in_obj)
+    
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
     else:
-        raise MBApiError("No parameters given")
+        a = Artist(in_obj)
+        _object_cache[a.id] = a
+        return a
 
 
-def get_release_group(release_group_id: ReleaseGroupID = None,
-                      mb_release_group: mb_models.ReleaseGroup = None) -> ReleaseGroup:
+def get_release_group(in_obj: ReleaseGroupID | str | mb_models.ReleaseGroup) -> ReleaseGroup:
     global _object_cache
-    if mb_release_group is not None:
-        if ReleaseGroupID(mb_release_group.gid) in _object_cache.keys():
-            return _object_cache[ReleaseGroupID(mb_release_group.gid)]
+    if isinstance(in_obj, mb_models.ReleaseGroup):
+        if ReleaseGroupID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[ReleaseGroupID(str(in_obj.gid))]
         else:
-            a = ReleaseGroup(mb_release_group=mb_release_group)
-            _object_cache[ReleaseGroupID(mb_release_group.gid)] = a
-    elif release_group_id is not None:
-        if release_group_id in _object_cache.keys():
-            return _object_cache[ReleaseGroupID(mb_release_group.gid)]
-        else:
-            a = get_release_group(release_group_id=release_group_id)
-            _object_cache[ReleaseGroupID(mb_release_group.gid)] = a
+            a = ReleaseGroup(in_obj)
+            _object_cache[ReleaseGroupID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+        in_obj = ReleaseGroupID(in_obj)
+
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
     else:
-        raise MBApiError("No parameters given")
+        a = ReleaseGroup(in_obj)
+        _object_cache[a.id] = a
+        return a
 
 
-def get_release(release_id: ReleaseID = None,
-                mb_release: mb_models.Release = None) -> Release:
+def get_release(in_obj: ReleaseID | str | mb_models.Release) -> Release:
     global _object_cache
-    if mb_release is not None:
-        if ReleaseID(mb_release.gid) in _object_cache.keys():
-            return _object_cache[ReleaseID(mb_release.gid)]
+    if isinstance(in_obj, mb_models.Release):
+        if ReleaseID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[ReleaseID(str(in_obj.gid))]
         else:
-            a = Release(mb_release=mb_release)
-            _object_cache[ReleaseID(mb_release.gid)] = a
-    elif release_id is not None:
-        if release_id in _object_cache.keys():
-            return _object_cache[ReleaseID(mb_release.gid)]
-        else:
-            a = Release(release_id=release_id)
-            _object_cache[ReleaseID(mb_release.gid)] = a
+            a = Release(in_obj)
+            _object_cache[ReleaseID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+        in_obj = ReleaseID(in_obj)
+
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
     else:
-        raise MBApiError("No parameters given")
+        a = Release(in_obj)
+        _object_cache[a.id] = a
+        return a
 
 
-def get_recording(recording_id: RecordingID = None,
-                  mb_recording: mb_models.Recording = None) -> Recording:
+def get_recording(in_obj: RecordingID | str | mb_models.Recording) -> Recording:
     global _object_cache
-    if mb_recording is not None:
-        if RecordingID(mb_recording.gid) in _object_cache.keys():
-            return _object_cache[RecordingID(mb_recording.gid)]
+    if isinstance(in_obj, mb_models.Recording):
+        if RecordingID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[RecordingID(str(in_obj.gid))]
         else:
-            a = Recording(mb_recording=mb_recording)
-            _object_cache[RecordingID(mb_recording.gid)] = a
-    elif recording_id is not None:
-        if recording_id in _object_cache.keys():
-            return _object_cache[RecordingID(mb_recording.gid)]
-        else:
-            a = Recording(recording_id=recording_id)
-            _object_cache[RecordingID(mb_recording.gid)] = a
+            a = Recording(in_obj)
+            _object_cache[RecordingID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+        in_obj = RecordingID(in_obj)
+
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
     else:
-        raise MBApiError("No parameters given")
+        a = Recording(in_obj)
+        _object_cache[a.id] = a
+        return a
+
+
+def get_track(in_obj: TrackID | str | mb_models.Track) -> Track:
+    global _object_cache
+    if isinstance(in_obj, mb_models.Track):
+        if TrackID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[TrackID(str(in_obj.gid))]
+        else:
+            a = Track(in_obj)
+            _object_cache[TrackID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+        in_obj = TrackID(in_obj)
+
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
+    else:
+        a = Track(in_obj)
+        _object_cache[a.id] = a
+        return a
+
+
+def get_work(in_obj: WorkID | str | mb_models.Work) -> Work:
+    global _object_cache
+    if isinstance(in_obj, mb_models.Work):
+        if WorkID(str(in_obj.gid)) in _object_cache.keys():
+            return _object_cache[WorkID(str(in_obj.gid))]
+        else:
+            a = Work(in_obj)
+            _object_cache[WorkID(str(in_obj.gid))] = a
+            return a
+    if isinstance(in_obj, str):
+        in_obj = WorkID(in_obj)
+
+    if in_obj in _object_cache.keys():
+        return _object_cache[in_obj]
+    else:
+        a = Work(in_obj)
+        _object_cache[a.id] = a
+        return a
 
 
 def get_medium(mb_medium: mb_models.Medium = None) -> Medium:
@@ -854,40 +858,3 @@ def get_medium(mb_medium: mb_models.Medium = None) -> Medium:
     else:
         raise MBApiError("No parameters given")
 
-
-def get_track(track_id: TrackID = None,
-              mb_track: mb_models.Track = None) -> Track:
-    global _object_cache
-    if mb_track is not None:
-        if TrackID(mb_track.gid) in _object_cache.keys():
-            return _object_cache[TrackID(mb_track.gid)]
-        else:
-            a = Track(mb_track=mb_track)
-            _object_cache[TrackID(mb_track.gid)] = a
-    elif track_id is not None:
-        if track_id in _object_cache.keys():
-            return _object_cache[TrackID(mb_track.gid)]
-        else:
-            a = Track(track_id=track_id)
-            _object_cache[TrackID(mb_track.gid)] = a
-    else:
-        raise MBApiError("No parameters given")
-
-
-def get_work(work_id: WorkID = None,
-             mb_work: mb_models.Work = None) -> Work:
-    global _object_cache
-    if mb_work is not None:
-        if WorkID(mb_work.gid) in _object_cache.keys():
-            return _object_cache[WorkID(mb_work.gid)]
-        else:
-            a = Work(mb_work=mb_work)
-            _object_cache[WorkID(mb_work.gid)] = a
-    elif work_id is not None:
-        if work_id in _object_cache.keys():
-            return _object_cache[WorkID(mb_work.gid)]
-        else:
-            a = Work(work_id=work_id)
-            _object_cache[WorkID(mb_work.gid)] = a
-    else:
-        raise MBApiError("No parameters given")

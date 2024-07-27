@@ -21,10 +21,14 @@ if __name__ == "__main__":
     db_session = db.get_db_session()
 
 
-    a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
-    b = ReleaseGroup(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))
+    # a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
+    # b = ReleaseGroup(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))
     c = Release(ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922"))
-    d = Recording(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
+    print(c.mediums)
+    d = Recording(RecordingID("901aa230-e85e-4305-b922-d78a9d62643f"))
+    print(d.siblings)
+    e = Recording(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
+    print(e.siblings)
     exit()
 
     mb: MBApi
