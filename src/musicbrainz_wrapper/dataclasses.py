@@ -216,7 +216,6 @@ class ReleaseGroup(MusicBrainzObject):
                 stmt = sa.select(mb_models.ReleaseGroup).where(mb_models.ReleaseGroup.gid == str(in_obj))
                 rg: mb_models.ReleaseGroup = session.scalar(stmt)
 
-
             self.id: ReleaseGroupID = ReleaseGroupID(str(rg.gid))
             self._db_id: int = rg.id
             self.artists = [get_artist(ArtistID(str(a.artist.gid))) for a in rg.artist_credit.artists]
@@ -363,7 +362,6 @@ class Release(MusicBrainzObject):
                     in_obj = ReleaseID(in_obj)
                 stmt = sa.select(mb_models.Release).where(mb_models.Release.gid == str(in_obj))
                 rel: mb_models.Release = session.scalar(stmt)
-
 
             self.id: ReleaseID = ReleaseID(str(rel.gid))
             self._db_id: int = rel.id
@@ -512,7 +510,6 @@ class Recording(MusicBrainzObject):
                     result.append(ra.name)
         return result
 
-
     @cached_property
     def performance_type(self) -> list[str]:
         p = self.performance_of
@@ -521,12 +518,12 @@ class Recording(MusicBrainzObject):
     @cached_property
     def performance_of(self) -> "Work":
         with get_db_session() as session:
-            stmt = sa.select(mb_models.LinkRecordingWork).\
+            stmt = sa.select(mb_models.LinkRecordingWork). \
                 where(mb_models.LinkRecordingWork.entity0_id == str(self._db_id))
             res: mb_models.LinkRecordingWork = session.scalar(stmt)
             w = get_work(res.work)
 
-            stmt = sa.select(mb_models.LinkAttribute).\
+            stmt = sa.select(mb_models.LinkAttribute). \
                 where(mb_models.LinkAttribute.link == res.link)
             res2: list[mb_models.LinkAttribute] = session.scalars(stmt).all()
             types = []
@@ -537,21 +534,55 @@ class Recording(MusicBrainzObject):
         return w
 
     @cached_property
+    def is_acapella(self) -> bool:
+        return "acapella" in self.performance_type
+
+    @cached_property
+    def is_live(self) -> bool:
+        return "live" in self.performance_type
+
+    @cached_property
+    def is_medley(self) -> bool:
+        return "medley" in self.performance_type
+
+    @cached_property
+    def is_partial(self) -> bool:
+        return "partial" in self.performance_type
+
+    @cached_property
+    def is_instrumental(self) -> bool:
+        return "ïnstrumental" in self.performance_type
+
+    @cached_property
+    def is_cover(self) -> bool:
+        return "cover" in self.performance_type
+
+    @cached_property
+    def is_karaoke(self) -> bool:
+        return "karaoke" in self.performance_type
+
+    @cached_property
+    def is_normal_performance(self) -> bool:
+        return len(self.performance_type) == 0
+
+    @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
         if len(self.performance_type) > 0:
-            _logger.error(f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
+            _logger.error(
+                f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
         else:
             _logger.error("Appending all siblings, which may be too much")
             work = self.performance_of
-            for r in work.performances:
+            for r in work.performances['no-attr']:
                 if r not in result:
                     result.append(r)
         return result
 
     def __repr__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}]" + ("/".join(self.performance_type) if len(self.performance_type) > 0 else "")
+        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}]" + (
+            "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
     def __eq__(self, other):
         if isinstance(other, Recording):
@@ -575,7 +606,8 @@ class Recording(MusicBrainzObject):
 
         title_ratio = rapidfuzz.process.extractOne(
             util.flatten_title(recording_name=title_query),
-            [util.flatten_title(recording_name=self.title)] + [util.flatten_title(recording_name=a) for a in self.aliases],
+            [util.flatten_title(recording_name=self.title)] + [util.flatten_title(recording_name=a) for a in
+                                                               self.aliases],
             processor=rapidfuzz.utils.default_process
         )[1]
 
@@ -607,7 +639,6 @@ class Medium(MusicBrainzObject):
             self.position: int = m.position
             self.release: Release = get_release(m.release)
             self.tracks: list[Track] = [get_track(t) for t in m.tracks]
-
 
     def __repr__(self):
         return f"Medium: {self.release.artist_credit_phrase} - {self.release.title} - {self.title}"
@@ -671,7 +702,6 @@ class Work(MusicBrainzObject):
             self.title: str = w.name
             self.disambiguation: str = w.comment
 
-
     @cached_property
     def aliases(self) -> list[str]:
         if 'alias-list' in self._json:
@@ -684,56 +714,37 @@ class Work(MusicBrainzObject):
 
     @cached_property
     def performances(self) -> dict[str, list[Recording]]:
-        results = { 'all': [], 'no-attr': [] }
+        results = {'all': [], 'no-attr': []}
         with get_db_session() as session:
-            j1 = sa.select(mb_models.Recording).join(mb_models.LinkRecordingWork, mb_models.LinkRecordingWork.recording).where(mb_models.LinkRecordingWork.entity1_id == str(self._db_id))
-            print(j1)
 
-            j2 = sa.select(mb_models.LinkAttribute).join(mb_models.Link, mb_models.LinkAttribute.link).join(mb_)
+            stmt = (
+                sa.select(mb_models.Recording, mb_models.LinkAttribute)
+                .select_from(
+                    sa.join(
+                        sa.join(mb_models.LinkRecordingWork, mb_models.Recording),
+                        sa.join(mb_models.LinkAttribute, mb_models.Link),
+                        isouter=True
+                    )
+                )
+                .where(mb_models.LinkRecordingWork.entity1_id == str(self._db_id))
+            )
 
+            res = session.execute(stmt)
 
-            print(j)
-            stmt = sa.select(mb_models.LinkAttribute, mb_models.Link, mb_models.LinkRecordingWork, ). \
-                select_from(j). \
-            print(stmt)
-            res: list[mb_models.LinkRecordingWork] = session.scalars(stmt)
-
-            for r in res:
-                rec: Recording = get_recording(r.recording)
+            for (r, la) in res:
+                rec: Recording = get_recording(r)
                 if rec not in results['all']:
                     results['all'].append(rec)
 
-                stmt = sa.select(mb_models.LinkAttribute). \
-                    where(mb_models.LinkAttribute.link == r.link)
-                res2: list[mb_models.LinkAttribute] = session.scalars(stmt).all()
-
-                if len(res2) == 0:
+                if la is None:
                     results['no-attr'].append(rec)
-                for la in res2:
+                else:
                     if la.attribute_type.name in results.keys():
                         results[la.attribute_type.name].append(rec)
                     else:
                         results[la.attribute_type.name] = [rec]
 
         return results
-
-
-        # ids = {"all": [], "no-attr": []}
-        # if 'recording-relation-list' not in self._json.keys():
-        #     return ids
-        # for a in self._json['recording-relation-list']:
-        #     if 'recording' in a.keys() and a['direction'] == 'backward':
-        #         if 'attribute-list' in a.keys():
-        #             for w in a['attribute-list']:
-        #                 if w in ids.keys():
-        #                     ids[w].append(RecordingID(a['recording']['id']))
-        #                 else:
-        #                     ids[w] = [RecordingID(a['recording']['id'])]
-        #         else:
-        #             ids['no-attr'].append(RecordingID(a['recording']['id']))
-        #         ids['all'].append(RecordingID(a['recording']['id']))
-        # return ids
-
 
     def __repr__(self):
         return f"Work:  {self.title}  [{self.id}]"
@@ -765,8 +776,8 @@ def get_artist(in_obj: ArtistID | str | mb_models.Artist) -> Artist:
             _object_cache[ArtistID(str(in_obj.gid))] = a
             return a
     if isinstance(in_obj, str):
-            in_obj = ArtistID(in_obj)
-    
+        in_obj = ArtistID(in_obj)
+
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
@@ -886,4 +897,3 @@ def get_medium(mb_medium: mb_models.Medium = None) -> Medium:
 
     else:
         raise MBApiError("No parameters given")
-
