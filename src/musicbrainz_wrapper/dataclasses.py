@@ -1,4 +1,5 @@
 import datetime
+import re
 from abc import ABC
 from functools import cached_property, cache
 from typing import Union
@@ -120,7 +121,7 @@ class Artist(MusicBrainzObject):
                                              credited=credited, contributing=contributing)
             result: list[mb_models.ReleaseGroup] = session.scalars(stmt).all()
 
-        return [get_release_group(mb_release_group=rg) for rg in result]
+        return [get_release_group(rg) for rg in result]
 
     @cached_property
     def release_groups(self) -> list["ReleaseGroup"]:
@@ -272,13 +273,15 @@ class ReleaseGroup(MusicBrainzObject):
                     result.append(rga.name)
         return result
 
+
+
     @cached_property
     def releases(self) -> list["Release"]:
         with get_db_session() as session:
             stmt = sa.select(mb_models.Release).where(mb_models.Release.release_group_id == self._db_id)
             releases: list[mb_models.Release] = session.scalars(stmt).all()
 
-            return [Release(ReleaseID(str(release.gid))) for release in releases]
+            return [get_release(ReleaseID(str(release.gid))) for release in releases]
 
     @cached_property
     def recordings(self) -> list["Recording"]:
@@ -367,7 +370,7 @@ class Release(MusicBrainzObject):
             self._db_id: int = rel.id
             self.artists = [get_artist(ArtistID(str(a.artist.gid))) for a in rel.artist_credit.artists]
             self.title: str = rel.name
-            self.release_group_id: ReleaseGroupID = ReleaseGroupID(str(rel.release_group.gid))
+            self._release_group_id: ReleaseGroupID = ReleaseGroupID(str(rel.release_group.gid))
             self.artist_credit_phrase: str = rel.artist_credit.name
             self.disambiguation: str = rel.comment
             self.first_release_date: datetime.date = parse_partial_date(
@@ -392,7 +395,7 @@ class Release(MusicBrainzObject):
 
     @cached_property
     def release_group(self) -> ReleaseGroup:
-        return ReleaseGroup(self.release_group_id)
+        return get_release_group(self._release_group_id)
 
     @cached_property
     def mediums(self) -> list["Medium"]:
@@ -400,7 +403,7 @@ class Release(MusicBrainzObject):
             stmt = sa.select(mb_models.Medium).where(mb_models.Medium.release_id == str(self._db_id))
             ms: list[mb_models.Medium] = session.scalars(stmt).all()
 
-            return [Medium(m) for m in ms]
+            return [get_medium(m) for m in ms]
 
     @cached_property
     def tracks(self) -> list["Track"]:
@@ -415,9 +418,8 @@ class Release(MusicBrainzObject):
     def recordings(self) -> list["Recording"]:
         result = []
         for t in self.tracks:
-            for r in t.recordings:
-                if r not in result:
-                    result.append(r)
+            if t.recording not in result:
+                result.append(t.recording)
         return result
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
@@ -437,6 +439,8 @@ class Release(MusicBrainzObject):
         if title_ratio < cut_off:
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
+
+
 
     def __repr__(self):
         return f"Release:  {self.artist_credit_phrase}: {self.title} [{self.id}]"
@@ -568,20 +572,67 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
-        if len(self.performance_type) > 0:
-            _logger.error(
-                f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
-        else:
-            _logger.error("Appending all siblings, which may be too much")
+        if len(self.performance_type) == 0:
+            _logger.error("Appending regular performance siblings")
             work = self.performance_of
             for r in work.performances['no-attr']:
                 if r not in result:
                     result.append(r)
+            return result
+        else:
+            _logger.error(
+                f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
+            return []
+
+    @cached_property
+    def streams(self) -> list[str]:
+        result = []
+        with get_db_session() as session:
+
+            base_stmt = (
+                sa.select(mb_models.URL, mb_models.Link, mb_models.LinkAttribute)
+                .select_from(
+                    sa.join(
+                        sa.join(mb_models.URL, mb_models.LinkRecordingURL).join(mb_models.Recording),
+                        sa.join(mb_models.Link, mb_models.LinkAttribute),
+                        isouter=True
+                    ))
+                )
+            stmt = base_stmt.where(mb_models.LinkRecordingURL.recording_id == str(self._db_id))
+
+            res: sa.ChunkedIteratorResult = session.execute(stmt)
+
+            if True: #res.raw.rowcount == 0:
+                _logger.debug(f"Also looking for streams of siblings")
+
+                siblings = [str(s.id) for s in self.siblings]
+
+                stmt = base_stmt.where(mb_models.Recording.gid.in_(siblings))
+                res: list[mb_models.URL, mb_models.Link, mb_models.LinkAttribute] = session.execute(stmt)
+
+            for (url, link, la) in res:
+                if la is not None:
+                    if la.attribute_type_id == 582: # video
+                        continue
+                if url.url not in result:
+                    result.append(url.url)
+
         return result
+
+    @cached_property
+    def spotify_id(self) -> str | None:
+        spotify_id_regex = r'open\.spotify\.com/\w+/([0-9A-Za-z]+)'
+        for url in self.streams:
+            match = re.search(spotify_id_regex, url)
+            if match:
+                id_ = match.group(1)
+                if id_:
+                    return id_
+        return None
 
     def __repr__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}]" + (
+        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}] " + (
             "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
     def __eq__(self, other):
@@ -637,11 +688,23 @@ class Medium(MusicBrainzObject):
             self._db_id: int = m.id
             self.title: str = m.name
             self.position: int = m.position
-            self.release: Release = get_release(m.release)
-            self.tracks: list[Track] = [get_track(t) for t in m.tracks]
+            self._release_id: ReleaseID = ReleaseID(str(m.release.gid))
+            self._track_ids: list[TrackID] = [TrackID(str(t.gid)) for t in m.tracks]
+            self.track_count = m.track_count
+            self.format = m.format.name
+
+    @cached_property
+    def release(self) -> Release:
+        return get_release(self._release_id)
+    @cached_property
+    def tracks(self) -> list["Track"]:
+        return [get_track(t) for t in self._track_ids]
 
     def __repr__(self):
-        return f"Medium: {self.release.artist_credit_phrase} - {self.release.title} - {self.title}"
+        return (
+            f"Medium: {self.release.artist_credit_phrase} - {self.release.title}"
+            + ( f" - {self.title}" if self.title else "")
+        )
 
 
 class Track(MusicBrainzObject):
@@ -655,34 +718,30 @@ class Track(MusicBrainzObject):
                 if isinstance(in_obj, str):
                     in_obj = TrackID(in_obj)
                 stmt = sa.select(mb_models.Track).where(mb_models.Track.gid == str(in_obj))
-                a: mb_models.Track = session.scalar(stmt)
+                tr: mb_models.Track = session.scalar(stmt)
 
             self.id: TrackID = TrackID(str(tr.gid))
             self._db_id: int = tr.id
             self.artists = [get_artist(ArtistID(str(a.artist.gid))) for a in tr.artist_credit.artists]
             self.title: str = tr.name
             self.artist_credit_phrase: str = tr.artist_credit.name
-            self.position: str = tr.position
+            self.position: int = tr.position
             self.number: str = tr.number
+            self.length: int = tr.length
+            self.medium: Medium = get_medium(tr.medium)
 
-    @property
-    def medium(self) -> Medium:
-        return self._medium
-
-    @cached_property
-    def recording_id(self) -> RecordingID:
-        return self._json["recording"]["id"]
+            self._recording_id: RecordingID = RecordingID(str(tr.recording.gid))
 
     @cached_property
     def recording(self) -> Recording:
-        return self._mb_api.get_recording_by_id(self.recording_id)
+        return get_recording(self._recording_id)
 
     @cached_property
     def release(self) -> Release:
         return self.medium.release
 
     def __repr__(self):
-        return f"Track {self.position} of {self.recording.artist_credit_phrase} / {self.release.title} / {self.recording.title}"
+        return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"
 
 
 class Work(MusicBrainzObject):
@@ -701,16 +760,8 @@ class Work(MusicBrainzObject):
             self._db_id: int = w.id
             self.title: str = w.name
             self.disambiguation: str = w.comment
+            self.type: str = w.type.name
 
-    @cached_property
-    def aliases(self) -> list[str]:
-        if 'alias-list' in self._json:
-            return [x['alias'] for x in self._json['alias-list']]
-        return [self.title]
-
-    @cached_property
-    def type(self) -> str:
-        return self._json["type"]
 
     @cached_property
     def performances(self) -> dict[str, list[Recording]]:
@@ -765,6 +816,9 @@ class Work(MusicBrainzObject):
 
 _object_cache = {}
 
+def clear_object_cache():
+    global _object_cache
+    _object_cache = {}
 
 def get_artist(in_obj: ArtistID | str | mb_models.Artist) -> Artist:
     global _object_cache
@@ -892,8 +946,8 @@ def get_medium(mb_medium: mb_models.Medium = None) -> Medium:
         if mb_medium.id in _object_cache.keys():
             return _object_cache[mb_medium.id]
         else:
-            a = Medium(mb_medium=mb_medium)
+            a = Medium(mb_medium)
             _object_cache[mb_medium.id] = a
-
+            return a
     else:
         raise MBApiError("No parameters given")

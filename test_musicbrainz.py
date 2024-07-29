@@ -21,17 +21,25 @@ if __name__ == "__main__":
     db_session = db.get_db_session()
 
 
-    # a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
-    # b = ReleaseGroup(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))
+    a = Artist(ArtistID("0df890e1-f4f2-4b21-a413-cd8af1af32d8"))
+    b = ReleaseGroup(ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4"))
     c = Release(ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922"))
-    print(c.mediums)
+    c1 = c.mediums
+    c2 = c1[0].tracks
     d = Recording(RecordingID("901aa230-e85e-4305-b922-d78a9d62643f"))
-    w1 = d.performance_of
-    r1 = w1.performances
-    print(d.siblings)
+    d1 = d.performance_of
+    d2 = d1.performances
+
+    d3 = d.siblings
     e = Recording(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
-    w2 = d.performance_of
-    print(e.siblings)
+    e1 = e.performance_of
+    e2 = e.streams
+    e3 = e.siblings
+
+    f = Recording(RecordingID('b1a9c0e9-d987-4042-ae91-78d6a3267d69'))
+    f1 = f.streams
+    f2 = f.siblings
+    f3 = f.spotify_id
     exit()
 
     mb: MBApi
