@@ -683,28 +683,57 @@ class Work(MusicBrainzObject):
         return self._json["type"]
 
     @cached_property
-    def performance_ids(self) -> dict[str, list[RecordingID]]:
-        ids = {"all": [], "no-attr": []}
-        if 'recording-relation-list' not in self._json.keys():
-            return ids
-        for a in self._json['recording-relation-list']:
-            if 'recording' in a.keys() and a['direction'] == 'backward':
-                if 'attribute-list' in a.keys():
-                    for w in a['attribute-list']:
-                        if w in ids.keys():
-                            ids[w].append(RecordingID(a['recording']['id']))
-                        else:
-                            ids[w] = [RecordingID(a['recording']['id'])]
-                else:
-                    ids['no-attr'].append(RecordingID(a['recording']['id']))
-                ids['all'].append(RecordingID(a['recording']['id']))
-        return ids
+    def performances(self) -> dict[str, list[Recording]]:
+        results = { 'all': [], 'no-attr': [] }
+        with get_db_session() as session:
+            j1 = sa.select(mb_models.Recording).join(mb_models.LinkRecordingWork, mb_models.LinkRecordingWork.recording).where(mb_models.LinkRecordingWork.entity1_id == str(self._db_id))
+            print(j1)
 
-    @cached_property
-    def performances(self) -> dict[str, list["Recording"]]:
-        result = {y: [self._mb_api.get_recording_by_id(x) for x in self.performance_ids[y]] for y in
-                  self.performance_ids.keys()}
-        return result
+            j2 = sa.select(mb_models.LinkAttribute).join(mb_models.Link, mb_models.LinkAttribute.link).join(mb_)
+
+
+            print(j)
+            stmt = sa.select(mb_models.LinkAttribute, mb_models.Link, mb_models.LinkRecordingWork, ). \
+                select_from(j). \
+            print(stmt)
+            res: list[mb_models.LinkRecordingWork] = session.scalars(stmt)
+
+            for r in res:
+                rec: Recording = get_recording(r.recording)
+                if rec not in results['all']:
+                    results['all'].append(rec)
+
+                stmt = sa.select(mb_models.LinkAttribute). \
+                    where(mb_models.LinkAttribute.link == r.link)
+                res2: list[mb_models.LinkAttribute] = session.scalars(stmt).all()
+
+                if len(res2) == 0:
+                    results['no-attr'].append(rec)
+                for la in res2:
+                    if la.attribute_type.name in results.keys():
+                        results[la.attribute_type.name].append(rec)
+                    else:
+                        results[la.attribute_type.name] = [rec]
+
+        return results
+
+
+        # ids = {"all": [], "no-attr": []}
+        # if 'recording-relation-list' not in self._json.keys():
+        #     return ids
+        # for a in self._json['recording-relation-list']:
+        #     if 'recording' in a.keys() and a['direction'] == 'backward':
+        #         if 'attribute-list' in a.keys():
+        #             for w in a['attribute-list']:
+        #                 if w in ids.keys():
+        #                     ids[w].append(RecordingID(a['recording']['id']))
+        #                 else:
+        #                     ids[w] = [RecordingID(a['recording']['id'])]
+        #         else:
+        #             ids['no-attr'].append(RecordingID(a['recording']['id']))
+        #         ids['all'].append(RecordingID(a['recording']['id']))
+        # return ids
+
 
     def __repr__(self):
         return f"Work:  {self.title}  [{self.id}]"

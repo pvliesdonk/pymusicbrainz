@@ -26,8 +26,11 @@ if __name__ == "__main__":
     c = Release(ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922"))
     print(c.mediums)
     d = Recording(RecordingID("901aa230-e85e-4305-b922-d78a9d62643f"))
+    w1 = d.performance_of
+    r1 = w1.performances
     print(d.siblings)
     e = Recording(RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
+    w2 = d.performance_of
     print(e.siblings)
     exit()
 
