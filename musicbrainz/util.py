@@ -26,7 +26,7 @@ def split_artist(artist_query: str) -> list[str]:
     return result
 
 
-def _fold_sort_candidates(
+def fold_sort_candidates(
         candidates: Sequence[tuple["ReleaseGroup", "Recording"]])\
         -> list[tuple["ReleaseGroup", list["Recording"]]]:
     t1 = {}
@@ -45,11 +45,11 @@ def flatten_title(artist_name="", recording_name="", album_name="") -> str:
     return unidecode(re.sub(r'\W+', '', artist_name + album_name + recording_name).lower())
 
 
-def parse_partial_date(pdate: mbdata.models.PartialDate) -> datetime.date | None:
-    if pdate.year is None:
+def parse_partial_date(partial_date: mbdata.models.PartialDate) -> datetime.date | None:
+    if partial_date.year is None:
         return None
-    if pdate.month is None:
-        return datetime.date(year=pdate.year, month=1, day=1)
-    if pdate.day is None:
-        return datetime.date(year=pdate.year, month=pdate.month, day=1)
-    return datetime.date(year=pdate.year, month=pdate.month, day=pdate.day)
+    if partial_date.month is None:
+        return datetime.date(year=partial_date.year, month=1, day=1)
+    if partial_date.day is None:
+        return datetime.date(year=partial_date.year, month=partial_date.month, day=1)
+    return datetime.date(year=partial_date.year, month=partial_date.month, day=partial_date.day)

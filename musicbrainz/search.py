@@ -1,7 +1,7 @@
 import datetime
 import logging
 import pathlib
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import acoustid
 import musicbrainzngs
@@ -9,19 +9,27 @@ import musicbrainzngs
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY
 from .dataclasses import Recording, Artist, ReleaseGroup, MusicBrainzObject, Release, Track
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
-from .exceptions import MBApiError, NotFoundError
-from .typesense import _do_typesense_lookup
+from .exceptions import MBApiError
+from .typesense import do_typesense_lookup
 from .object_cache import get_recording, get_artist, get_release
 from .util import split_artist
 
 _logger = logging.getLogger(__name__)
 
 
-def search_recording(
+def search_song_musicbrainz(
         artist_query: str,
         title_query: str,
         date: datetime.date = None,
         cut_off: int = 90) -> list["Recording"]:
+    """Search for a recording in the Musicbrainz API
+
+    :param artist_query: Artist name
+    :param title_query: Recording name / Title
+    :param date: Date of release (optional)
+    :param cut_off: Tweak on when to cut of results from search (optional
+    :return:
+    """
     _logger.debug(f"Searching for recording '{artist_query}' - '{title_query}' from MusicBrainz API")
 
     result_ids = []
@@ -69,8 +77,8 @@ def search_recording(
         raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
 
 
-def typesense_lookup(artist_name, recording_name):
-    hits = _do_typesense_lookup(artist_name, recording_name)
+def _search_typesense(artist_name, recording_name):
+    hits = do_typesense_lookup(artist_name, recording_name)
 
     output = []
     for hit in hits:
@@ -82,7 +90,13 @@ def typesense_lookup(artist_name, recording_name):
     return output
 
 
-def search_artists(artist_query: str, cut_off: int = 90) -> list["Artist"]:
+def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Artist"]:
+    """Search for a recording in the Musicbrainz API
+
+    :param artist_query: Artist name
+    :param cut_off: Tweak on when to cut of results from search (optional
+    :return:
+    """
     _logger.debug(f"Searching for artist '{artist_query}' from MusicBrainz API")
 
     search_params = {}
@@ -109,54 +123,18 @@ def search_artists(artist_query: str, cut_off: int = 90) -> list["Artist"]:
         raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
 
 
-def select_best_candidate(candidates: Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]) -> tuple[
-    ReleaseGroup, Recording]:
-    # {
-    #     "studio_albums": sorted(albums),
-    #     "eps": sorted(eps),
-    #     "soundtracks": sorted(soundtracks),
-    #     "singles": sorted(singles)
-    # }
-
-    if len(candidates["studio_albums"]) > 0:
-        if len(candidates["soundtracks"]) > 0:
-            if candidates["studio_albums"][0][0] < candidates["soundtracks"][0][0]:
-                _logger.debug(f"Choosing oldest studio album over potential soundtrack")
-                return candidates["studio_albums"][0][0], candidates["studio_albums"][0][1][0],
-            else:
-                _logger.debug(f"Choosing soundtrack that is older than oldest studio album")
-                return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
-        else:
-            _logger.debug(f"Choosing oldest studio album")
-            return candidates["studio_albums"][0][0], candidates["studio_albums"][0][1][0],
-    elif len(candidates["eps"]) > 0:
-        if len(candidates["soundtracks"]) > 0:
-            if candidates["eps"][0][0] < candidates["soundtracks"][0][0]:
-                _logger.debug(f"Choosing oldest EP over potential soundtrack")
-                return candidates["eps"][0][0], candidates["eps"][0][1][0],
-            else:
-                _logger.debug(f"Choosing soundtrack that is older than oldest EP")
-                return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
-        else:
-            _logger.debug(f"Choosing oldest EP")
-            return candidates["eps"][0][0], candidates["eps"][0][1][0],
-    elif len(candidates["soundtracks"]) > 0:
-        _logger.debug(f"Choosing oldest soundtrack")
-        return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
-    elif "singles" not in candidates.keys():
-        raise NotFoundError("Expecting to look at singles, but they were not fetched.")
-    elif len(candidates["singles"]) > 0:
-        return candidates["singles"][0][0], candidates["singles"][0][1][0],
-    else:
-        raise NotFoundError("Somehow we didn't get any viable candidates")
-
-
-def search_canonical_release(
+def search_song_canonical(
         artist_query: str,
         title_query: str,
 ) -> dict[str, MusicBrainzObject] | None:
+    """Search for a recording in the list of canonical releases
+
+    :param artist_query: Artist name
+    :param title_query: Recording name / Title
+    :return:
+    """
     _logger.debug("Doing a lookup for canonical release")
-    canonical_hits = typesense_lookup(artist_query, title_query)
+    canonical_hits = _search_typesense(artist_query, title_query)
     if len(canonical_hits) > 0:
         _logger.info("Found canonical release according to MusicBrainz Canonical dataset")
         rg: ReleaseGroup = canonical_hits[0]['release_group']
@@ -351,14 +329,21 @@ def search_fingerprint_by_type(
     )
 
 
-def search_name(artist_query: str, title_query: str, cut_off: int = None) \
+def search_song(artist_query: str, title_query: str, cut_off: int = None) \
         -> dict[SearchType, dict[str, MusicBrainzObject]]:
+    """Main search function
+
+    :param artist_query: Artist name
+    :param title_query: Recording name / Title
+    :param cut_off:
+    :return:
+    """
     if cut_off is None:
         cut_off = 90
 
-    canonical = search_canonical_release(artist_query=artist_query, title_query=title_query)
+    canonical = search_song_canonical(artist_query=artist_query, title_query=title_query)
 
-    songs_found = search_recording(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
+    songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
     recording_ids = [recording.id for recording in songs_found if recording.is_sane(artist_query, title_query)]
     result = search_by_recording_id(recording_ids)
     result[SearchType.CANONICAL] = canonical
@@ -372,7 +357,7 @@ def search_name_by_type(
         search_type: SearchType,
         use_siblings: bool = True,
         cut_off: int = None) -> dict[str, MusicBrainzObject]:
-    songs_found = search_recording(
+    songs_found = search_song_musicbrainz(
         artist_query=artist_query,
         title_query=title_query,
         cut_off=cut_off)

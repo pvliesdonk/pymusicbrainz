@@ -30,6 +30,10 @@ class Artist(MusicBrainzObject):
 
     def __init__(self,
                  in_obj: ArtistID | mbdata.models.Artist | str) -> None:
+        """Create Artist object. Use get_artist() instead
+
+        :param in_obj: Musicbrainz ArtistID (optionally as string) or mbdata.models.Artist object
+        """
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Artist):
                 a = session.merge(in_obj)
@@ -54,7 +58,6 @@ class Artist(MusicBrainzObject):
             out = [alias.name for alias in result]
             return out
 
-    @cached_property
     def url(self) -> str:
         return f"https://musicbrainz.org/artist/{self.id}"
 

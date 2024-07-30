@@ -1,18 +1,21 @@
 import datetime
+import logging
 import pathlib
-from typing import Sequence
+from typing import Sequence, Mapping
 
 import acoustid
 import rapidfuzz
 
+from .datatypes import RecordingID
+from .exceptions import MBApiError, NotFoundError
 from .constants import ACOUSTID_APIKEY
 from .dataclasses import ReleaseGroup, Recording, Release, Track, Artist
-from .datatypes import RecordingID
-from .exceptions import MBApiError
 from .object_cache import get_recording
-from .search import typesense_lookup, find_track_for_release_recording, select_best_candidate, \
-    find_track_release_for_release_group_recording, search_artists, search_recording
-from .util import flatten_title, _fold_sort_candidates
+from .search import _search_typesense, find_track_for_release_recording, find_track_release_for_release_group_recording, \
+    search_artist_musicbrainz, search_song_musicbrainz, _logger
+from .util import flatten_title, fold_sort_candidates
+
+_logger = logging.getLogger(__name__)
 
 
 def find_best_release_group(
@@ -32,7 +35,7 @@ def find_best_release_group(
 
         if canonical:
             _logger.debug("Doing a lookup for canonical release")
-            canonical_hits = typesense_lookup(artist_query, title_query)
+            canonical_hits = _search_typesense(artist_query, title_query)
             if len(canonical_hits) > 0:
                 _logger.info("Found canonical release according to MusicBrainz Canonical dataset")
                 rg: ReleaseGroup = canonical_hits[0]['release_group']
@@ -145,9 +148,9 @@ def find_best_release_group_by_recording_ids(
     # Do not load all singles if we don't need to
     if len(albums) + len(soundtracks) + len(eps) > 0:
         return {
-            "studio_albums": _fold_sort_candidates(albums),
-            "eps": _fold_sort_candidates(eps),
-            "soundtracks": _fold_sort_candidates(soundtracks)
+            "studio_albums": fold_sort_candidates(albums),
+            "eps": fold_sort_candidates(eps),
+            "soundtracks": fold_sort_candidates(soundtracks)
         }
 
     if not lookup_singles:
@@ -170,10 +173,10 @@ def find_best_release_group_by_recording_ids(
                         _logger.debug(f"{ratio}%: {recording2} ")
 
     return {
-        "studio_albums": _fold_sort_candidates(albums),
-        "eps": _fold_sort_candidates(eps),
-        "soundtracks": _fold_sort_candidates(soundtracks),
-        "singles": _fold_sort_candidates(singles)
+        "studio_albums": fold_sort_candidates(albums),
+        "eps": fold_sort_candidates(eps),
+        "soundtracks": fold_sort_candidates(soundtracks),
+        "singles": fold_sort_candidates(singles)
     }
 
 
@@ -216,7 +219,7 @@ def find_best_release_group_by_artist(
         cut_off: int = 90,
         lookup_singles: bool = True,
 ) -> dict[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]:
-    artists_found = search_artists(artist_query, cut_off=cut_off)
+    artists_found = search_artist_musicbrainz(artist_query, cut_off=cut_off)
 
     if len(artists_found) == 0:
         _logger.debug(f"Could not identify potential artists via artist search")
@@ -261,9 +264,9 @@ def find_best_release_group_by_artist(
     # Do not load all singles if we don't need to
     if len(albums) + len(soundtracks) + len(eps) > 0:
         return {
-            "studio_albums": _fold_sort_candidates(albums),
-            "eps": _fold_sort_candidates(eps),
-            "soundtracks": _fold_sort_candidates(soundtracks)
+            "studio_albums": fold_sort_candidates(albums),
+            "eps": fold_sort_candidates(eps),
+            "soundtracks": fold_sort_candidates(soundtracks)
         }
 
     if not lookup_singles:
@@ -283,10 +286,10 @@ def find_best_release_group_by_artist(
     singles = [x[2] for x in result]
 
     return {
-        "studio_albums": _fold_sort_candidates(albums),
-        "eps": _fold_sort_candidates(eps),
-        "soundtracks": _fold_sort_candidates(soundtracks),
-        "singles": _fold_sort_candidates(singles)
+        "studio_albums": fold_sort_candidates(albums),
+        "eps": fold_sort_candidates(eps),
+        "soundtracks": fold_sort_candidates(soundtracks),
+        "singles": fold_sort_candidates(singles)
     }
 
 
@@ -301,8 +304,8 @@ def find_best_release_group_by_search(
         dict[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]
 ):
     # First do a lookup for the song via a search query
-    songs_found = search_recording(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
-                                   date=date)
+    songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
+                                          date=date)
 
     _logger.info(f"Found {len(songs_found)} recordings in search")
     if len(songs_found) == 0:
@@ -348,9 +351,9 @@ def find_best_release_group_by_search(
     # Do not load all singles if we don't need to
     if len(albums) + len(soundtracks) + len(eps) > 0:
         return {
-            "studio_albums": _fold_sort_candidates(albums),
-            "eps": _fold_sort_candidates(eps),
-            "soundtracks": _fold_sort_candidates(soundtracks)
+            "studio_albums": fold_sort_candidates(albums),
+            "eps": fold_sort_candidates(eps),
+            "soundtracks": fold_sort_candidates(soundtracks)
         }
 
     if not lookup_singles:
@@ -370,8 +373,50 @@ def find_best_release_group_by_search(
     _logger.info(f"Found {len(singles)} potential singles in search")
 
     return {
-        "studio_albums": _fold_sort_candidates(albums),
-        "eps": _fold_sort_candidates(eps),
-        "soundtracks": _fold_sort_candidates(soundtracks),
-        "singles": _fold_sort_candidates(singles)
+        "studio_albums": fold_sort_candidates(albums),
+        "eps": fold_sort_candidates(eps),
+        "soundtracks": fold_sort_candidates(soundtracks),
+        "singles": fold_sort_candidates(singles)
     }
+
+
+def select_best_candidate(candidates: Mapping[str, Sequence[tuple[ReleaseGroup, Sequence[Recording]]]]) -> tuple[
+    ReleaseGroup, Recording]:
+    # {
+    #     "studio_albums": sorted(albums),
+    #     "eps": sorted(eps),
+    #     "soundtracks": sorted(soundtracks),
+    #     "singles": sorted(singles)
+    # }
+
+    if len(candidates["studio_albums"]) > 0:
+        if len(candidates["soundtracks"]) > 0:
+            if candidates["studio_albums"][0][0] < candidates["soundtracks"][0][0]:
+                _logger.debug(f"Choosing oldest studio album over potential soundtrack")
+                return candidates["studio_albums"][0][0], candidates["studio_albums"][0][1][0],
+            else:
+                _logger.debug(f"Choosing soundtrack that is older than oldest studio album")
+                return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
+        else:
+            _logger.debug(f"Choosing oldest studio album")
+            return candidates["studio_albums"][0][0], candidates["studio_albums"][0][1][0],
+    elif len(candidates["eps"]) > 0:
+        if len(candidates["soundtracks"]) > 0:
+            if candidates["eps"][0][0] < candidates["soundtracks"][0][0]:
+                _logger.debug(f"Choosing oldest EP over potential soundtrack")
+                return candidates["eps"][0][0], candidates["eps"][0][1][0],
+            else:
+                _logger.debug(f"Choosing soundtrack that is older than oldest EP")
+                return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
+        else:
+            _logger.debug(f"Choosing oldest EP")
+            return candidates["eps"][0][0], candidates["eps"][0][1][0],
+    elif len(candidates["soundtracks"]) > 0:
+        _logger.debug(f"Choosing oldest soundtrack")
+        return candidates["soundtracks"][0][0], candidates["soundtracks"][0][1][0],
+    elif "singles" not in candidates.keys():
+        raise NotFoundError("Expecting to look at singles, but they were not fetched.")
+    elif len(candidates["singles"]) > 0:
+        return candidates["singles"][0][0], candidates["singles"][0][1][0],
+    else:
+        raise NotFoundError("Somehow we didn't get any viable candidates")

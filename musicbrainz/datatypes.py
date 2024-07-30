@@ -76,6 +76,7 @@ class ReleaseStatus(enum.StrEnum):
 
 
 class SearchType(enum.StrEnum):
+    """Constant to define what sort of search to perform"""
     CANONICAL = "canonical"
     STUDIO_ALBUM = "studio_album"
     SINGLE = "single"

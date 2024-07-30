@@ -1,64 +1,86 @@
 import logging
+from typing import Any
 
 import typesense
 import urllib3.util
 
+from . import constants
 from .datatypes import ArtistID, ReleaseID, RecordingID
 from .util import flatten_title
 
-_url: urllib3.util.Url = urllib3.util.parse_url("http://musicbrainz.int.liesdonk.nl:8108")
-_api_key: str = "xyz"
-_search_field: str = "combined"
-_collection: str = "musicbrainz"
-_client: typesense.Client | None = None
+
+_typesense_url: urllib3.util.Url = constants.DEFAULT_TYPESENSE_URL
+_typesense_api_key: str = constants.DEFAULT_TYPESENSE_API_KEY
+_typesense_search_field: str = constants.DEFAULT_TYPESENSE_SEARCH_FIELD
+_typesense_collection: str = constants.DEFAULT_TYPESENSE_COLLECTION
+
+_typesense_client: typesense.Client
 
 _logger = logging.getLogger(__name__)
 
 
-def configure_typesense(url: urllib3.util.Url = None, api_key: str = None, collection: str = None,
-                        search_field: str = None):
-    global _url, _api_key, _collection, _search_field
+def configure_typesense(
+        url: urllib3.util.Url = None,
+        api_key: str = None,
+        collection: str = None,
+        search_field: str = None) -> None:
+    """Configure how to access the Typesense search service
+
+    :param url: Full URL to the Typesense server
+    :param api_key: API key to connect to the Typesense server
+    :param collection: Collection to query
+    :param search_field: Search field to search against
+    """
+    global _typesense_url, _typesense_api_key, _typesense_collection, _typesense_search_field
     if url is not None:
         _logger.info(f"Now configured to access typesense at {url}")
-        _url = url
+        _typesense_url = url
 
     if collection is not None:
         _logger.info(f"Now configured to read typesense collection '{collection}'")
-        _collection = collection
+        _typesense_collection = collection
 
     if search_field is not None:
         _logger.info(f"Now configured to search typesense field {search_field}")
-        _search_field = search_field
+        _typesense_search_field = search_field
 
     if api_key is not None:
-        _api_key = api_key
+        _typesense_api_key = api_key
 
 
-def get_client():
-    global _client
-    if _client is None:
-        _client = typesense.Client({
+def _get_typesense_client() -> typesense.Client:
+    """Returns a client to interact with the Typesense service
+
+    :return: typesense.Client instance
+    """
+    global _typesense_client
+    if _typesense_client is None:
+        _typesense_client = typesense.Client({
             'nodes': [{
-                'host': _url.host,
-                'port': _url.port,
-                'protocol': _url.scheme,
+                'host': _typesense_url.host,
+                'port': _typesense_url.port,
+                'protocol': _typesense_url.scheme,
             }],
-            'api_key': _api_key,
+            'api_key': _typesense_api_key,
             'connection_timeout_seconds': 1000000
         })
         _logger.debug("Connected Typesense client")
-    return _client
+    return _typesense_client
 
 
-def _do_typesense_lookup(artist_name, recording_name):
-    """ Perform a lookup on the typsense index """
+def do_typesense_lookup(artist_name, recording_name) -> list[dict[str, Any]]:
+    """ Perform a lookup on the typesense index
+    :param artist_name: Artist Name
+    :param recording_name: Recording Name / Title
+    :return: List of search results as Dicts with keys 'artist_credit_name', 'artist_ids', 'release_id' and 'recording_id'
+    """
 
-    client = get_client()
+    client = _get_typesense_client()
     query = flatten_title(artist_name, recording_name)
-    search_parameters = {'q': query, 'query_by': _search_field, 'prefix': 'no', 'num_typos': 5}
+    search_parameters = {'q': query, 'query_by': _typesense_search_field, 'prefix': 'no', 'num_typos': 5}
 
-    _logger.debug(f"Search typesense collection {_collection} for '{_search_field}'~='{query}'.")
-    hits = client.collections[_collection].documents.search(search_parameters)
+    _logger.debug(f"Search typesense collection {_typesense_collection} for '{_typesense_search_field}'~='{query}'.")
+    hits = client.collections[_typesense_collection].documents.search(search_parameters)
 
     output = []
     for hit in hits['hits']:
