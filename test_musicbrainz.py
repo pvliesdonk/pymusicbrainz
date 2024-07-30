@@ -1,7 +1,5 @@
 import logging
 
-from src.musicbrainz_wrapper import *
-
 DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/musicbrainz_db"
 
 if __name__ == "__main__":
