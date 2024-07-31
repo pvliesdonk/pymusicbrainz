@@ -18,6 +18,7 @@ pymusicbrainz.configure_typesense()
 A = pymusicbrainz.search_song('The Beatles', 'I Feel Fine')
 
 a = pymusicbrainz.get_artist("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
+a1 = a.release_group_ids
 b = pymusicbrainz.get_release_group("94e8bbe7-788d-3000-8e40-57b7591d4fb4")
 c = pymusicbrainz.get_release("a6f67b96-5f97-495c-b224-ec93d521f922")
 d = pymusicbrainz.get_recording("77601dfe-df14-4894-a8b7-c5c68ca25e11")

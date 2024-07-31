@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 from .constants import PRIMARY_TYPES, SECONDARY_TYPES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
-    WorkID
+    WorkID, SecondaryTypeList
 from .db import get_db_session
 from .exceptions import MBApiError
 
@@ -58,17 +58,33 @@ class Artist(MusicBrainzObject):
     def url(self) -> str:
         return f"https://musicbrainz.org/artist/{self.id}"
 
+    @cache
     def _release_group_query(self,
-                             primary_type: ReleaseType = None,
-                             secondary_types: list[ReleaseType] | None = [],
-                             credited: bool = True,
-                             contributing: bool = False) -> sa.Select:
-        # base: all release release groups for artist
+                             primary_type: ReleaseType,
+                             secondary_types: SecondaryTypeList,
+                             credited: bool,
+                             contributing: bool) -> sa.Select:
+        """Create SQL query to get all release groups for this artist
+
+        :param primary_type: only get release groups with this primary type
+        :param secondary_types:  only get release groups with this secondary type.
+        :param credited: Include release groups credited to this artist
+        :param contributing: Include release groups where this artist contributes but is not credited
+        :return:
+        """
+
+        # base: all  release groups for artist
         stmt = sa.select(mbdata.models.ReleaseGroup). \
             distinct(). \
             join(mbdata.models.ArtistReleaseGroup). \
             where(mbdata.models.ArtistReleaseGroup.artist.has(id=self._db_id)). \
             where(~mbdata.models.ArtistReleaseGroup.unofficial)
+
+        if primary_type is ReleaseType.NONE:
+            return stmt.where(sa.false())
+
+        if ReleaseType.NONE in secondary_types:
+            secondary_types = [ReleaseType.NONE]
 
         # credited/contributing
         if credited:
@@ -81,26 +97,33 @@ class Artist(MusicBrainzObject):
                 raise MBApiError("Query would result in no release groups")
 
         # primary type
-        if primary_type is not None:
+        if primary_type is not ReleaseType.ALL:
             stmt = stmt.where(mbdata.models.ArtistReleaseGroup.primary_type == PRIMARY_TYPES[primary_type])
 
-        if secondary_types is not None:
+        if ReleaseType.NONE in secondary_types:
+            stmt = stmt.where(mbdata.models.ArtistReleaseGroup.secondary_types.is_(None))
+        elif ReleaseType.ALL not in secondary_types:
             if len(secondary_types) > 0:
                 types = [SECONDARY_TYPES[t] for t in secondary_types]
                 where_clause = mbdata.models.ArtistReleaseGroup.secondary_types.contains(types)
                 stmt = stmt.where(where_clause)
-        else:
-            stmt = stmt.where(mbdata.models.ArtistReleaseGroup.secondary_types.is_(None))
 
         return stmt
 
     @cache
-    def _get_release_group_ids(self,
-                           primary_type: ReleaseType = None,
-                           secondary_types: list[ReleaseType] | None = [],
-                           credited: bool = True,
-                           contributing: bool = False) -> list["ReleaseGroupID"]:
+    def _get_release_group_db_items(self,
+                                    primary_type: ReleaseType,
+                                    secondary_types: SecondaryTypeList,
+                                    credited: bool,
+                                    contributing: bool) -> list[mbdata.models.ReleaseGroup]:
+        """Fetch release groups for this artist from the database
 
+        :param primary_type: only get release groups with this primary type
+        :param secondary_types:  only get release groups with this secondary type.
+        :param credited: Include release groups credited to this artist
+        :param contributing: Include release groups where this artist contributes but is not credited
+        :return:
+        """
 
         s = f"Fetching"
         if primary_type is not None:
@@ -109,11 +132,12 @@ class Artist(MusicBrainzObject):
             s = s + " release groups"
         s = s + f" {'credited to' if credited else ''}{'/' if credited and contributing else ''}{'contributed to by' if contributing else ''}"
         s = s + f" artist {self.name} [{self.id}]"
-        if secondary_types is not None:
+        if secondary_types == [primary_type]:
+            s = s + f" with no secondary types"
+        else:
             if len(secondary_types) > 0:
                 s = s + f" with secondary types {', '.join(secondary_types)}"
-        else:
-            s = s + f" with no secondary types"
+
         _logger.debug(s)
 
         with get_db_session() as session:
@@ -121,45 +145,94 @@ class Artist(MusicBrainzObject):
                                              credited=credited, contributing=contributing)
             result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt).all()
 
-        return [ReleaseGroupID(rg.gid) for rg in result]
+        return result
 
+    @cache
     def get_release_groups(self,
-                           primary_type: ReleaseType = None,
-                           secondary_types: list[ReleaseType] | None = [],
-                           credited: bool = True,
-                           contributing: bool = False) -> list["ReleaseGroup"]:
-        from .object_cache import get_release_group
-        return [get_release_group(id) for id in self._get_release_group_ids(primary_type, secondary_types, credited, contributing)]
+                           primary_type: ReleaseType,
+                           secondary_types: SecondaryTypeList,
+                           credited: bool,
+                           contributing: bool) -> list["ReleaseGroup"]:
+        """Get all release groups for this artist
 
+        :param primary_type: only get release groups with this primary type
+        :param secondary_types:  only get release groups with this secondary type. When equal to primary_type, only return release groups with no secondary type
+        :param credited: Include release groups credited to this artist
+        :param contributing: Include release groups where this artist contributes but is not credited
+        :return:
+        """
+
+        from .object_cache import get_release_group
+        return [get_release_group(d) for d in
+                self._get_release_group_db_items(primary_type, secondary_types, credited, contributing)]
+
+    @cache
+    def get_release_group_ids(self,
+                              primary_type: ReleaseType,
+                              secondary_types: SecondaryTypeList,
+                              credited: bool,
+                              contributing: bool) -> list["ReleaseGroupID"]:
+        return [ReleaseGroupID(str(d.gid)) for d in
+                self._get_release_group_db_items(primary_type, secondary_types, credited, contributing)]
 
     @cached_property
     def release_groups(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=None, secondary_types=[], credited=True, contributing=False)
+        return self.get_release_groups(primary_type=ReleaseType.ALL, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+                                       contributing=False)
+
+    @cached_property
+    def release_group_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.ALL, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True, contributing=False)
 
     @cached_property
     def albums(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=[], credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
+
+    @cached_property
+    def album_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def singles(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.SINGLE, secondary_types=[], credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.SINGLE, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
+
+    @cached_property
+    def single_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.SINGLE, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def eps(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.EP, secondary_types=[], credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.EP, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
 
     @cached_property
+    def ep_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.EP, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+                                          contributing=False)
+
+    @cached_property
     def studio_albums(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=None, credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
+                                       contributing=False)
+
+    @cached_property
+    def studio_album_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
 
     @cached_property
     def soundtracks(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=[ReleaseType.SOUNDTRACK],
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                        credited=True, contributing=True)
+
+    @cached_property
+    def soundtrack_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
+                                          credited=True, contributing=True)
 
     def is_sane(self, artist_query: str, cut_off=70) -> bool:
         from .util import split_artist, flatten_title
@@ -284,30 +357,45 @@ class ReleaseGroup(MusicBrainzObject):
         return result
 
     @cached_property
-    def releases(self) -> list["Release"]:
-        from .object_cache import get_release
-
+    def _releases_db_items(self) -> list["mbdata.models.Release"]:
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.Release).where(mbdata.models.Release.release_group_id == self._db_id)
             releases: list[mbdata.models.Release] = session.scalars(stmt).all()
 
-            return [get_release(ReleaseID(str(release.gid))) for release in releases]
+            return releases
+        
+    @cached_property
+    def releases(self) -> list["Release"]:
+        from .object_cache import get_release
+        return [get_release(release) for release in self._releases_db_items]
+
+    @cached_property
+    def release_ids(self) -> list["ReleaseID"]:
+        return [ReleaseID(str(release.gid)) for release in self._releases_db_items]
+
+    @cached_property
+    def _recordings_db_items(self) -> list["mbdata.models.Recording"]:
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.Recording)
+                .join(mbdata.models.Track)
+                .join(mbdata.models.Medium)
+                .join(mbdata.models.Release)
+                .where(mbdata.models.Release.release_group.has(id=self._db_id))
+            )
+            recordings: list[mbdata.models.Recording] = session.scalars(stmt).all()
+
+            return recordings
 
     @cached_property
     def recordings(self) -> list["Recording"]:
-        result = []
-        rel: Release
-        for rel in self.releases:
-            for rec in rel.recordings:
-                if rec not in result:
-                    result.append(rec)
-        return result
+        from .object_cache import get_recording
+        return [get_recording(recording) for recording in self._recordings_db_items]
 
     @cached_property
-    def _recording_ids(self) -> list["RecordingID"]:
-        with get_db_session() as session:
-            stmt = sa.select()
-        return []
+    def recording_ids(self) -> list["RecordingID"]:
+        return [RecordingID(str(recording.gid)) for recording in self._recordings_db_items]
+
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         from .util import flatten_title
@@ -359,7 +447,7 @@ class ReleaseGroup(MusicBrainzObject):
         if isinstance(item, Release):
             return item.release_group == self
         if isinstance(item, Recording):
-            return any(item in release for release in self.releases)
+            return item.id in self.recording_ids
         if isinstance(item, Medium):
             return item.release.release_group == self
         if isinstance(item, Track):
@@ -437,12 +525,26 @@ class Release(MusicBrainzObject):
         return result
 
     @cached_property
+    def _recordings_db_items(self) -> list["mbdata.models.Recording"]:
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.Recording)
+                .join(mbdata.models.Track)
+                .join(mbdata.models.Medium)
+                .where(mbdata.models.Medium.release.has(id=self._db_id))
+            )
+            recordings: list[mbdata.models.Recording] = session.scalars(stmt).all()
+
+            return recordings
+
+    @cached_property
     def recordings(self) -> list["Recording"]:
-        result = []
-        for t in self.tracks:
-            if t.recording not in result:
-                result.append(t.recording)
-        return result
+        from .object_cache import get_recording
+        return [get_recording(recording) for recording in self._recordings_db_items]
+
+    @cached_property
+    def recording_ids(self) -> list["RecordingID"]:
+        return [RecordingID(str(recording.gid)) for recording in self._recordings_db_items]
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         from .util import flatten_title
@@ -604,15 +706,17 @@ class Recording(MusicBrainzObject):
                     result.append(r)
             return result
         elif len(self.performance_type) == 1:
-            _logger.info(f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+            _logger.info(
+                f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
             for r in work.performances[self.performance_type[0]]:
                 if r not in result and r.artists == self.artists:
                     result.append(r)
             return result
         else:
-            _logger.info(f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+            _logger.info(
+                f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
             options = work.performances[self.performance_type[0]]
-            for i in range(1,len(self.performance_type)):
+            for i in range(1, len(self.performance_type)):
                 options = [rec for rec in options if rec in work.performances[self.performance_type[i]]]
 
             for r in options:
@@ -774,6 +878,7 @@ class Medium(MusicBrainzObject):
         if isinstance(item, Work):
             raise NotImplementedError
 
+
 class Track(MusicBrainzObject):
 
     def __init__(self,
@@ -825,6 +930,7 @@ class Track(MusicBrainzObject):
             return self.recording == item
         if isinstance(item, Work):
             return self.recording in item.performances['all']
+
 
 class Work(MusicBrainzObject):
     def __init__(self,

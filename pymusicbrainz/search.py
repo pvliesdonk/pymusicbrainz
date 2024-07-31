@@ -198,7 +198,7 @@ def _search_release_group_by_recording_ids(
     found_rgs = []
     for artist in artists:
         for rg in getattr(artist, search_field):
-            _logger.debug(f"Searching in '{rg.artist_credit_phrase}' - '{rg.title}' ")
+            _logger.debug(f"Searching in {rg}")
             for recording in recordings:
                 if recording in rg:
                     track, release = find_track_release_for_release_group_recording(rg, recording)
@@ -216,6 +216,7 @@ def _search_release_group_by_recording_ids(
             "track": found_rgs[0][3]
         }
     else:
+        _logger.debug(f"Not release groups found")
         return None
 
 

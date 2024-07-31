@@ -66,6 +66,18 @@ class ReleaseType(enum.StrEnum):
     AUDIODRAMA = "Audio drama"
     FIELDRECORDING = "Field recording"
 
+    ALL = "All"
+    NONE = "None"
+
+
+class SecondaryTypeList(list[ReleaseType]):
+    def __hash__(self):
+        if ReleaseType.NONE in self:
+            return hash("_".join([ReleaseType.NONE]))
+        if ReleaseType.ALL in self:
+            return hash("_".join([ReleaseType.ALL]))
+        return hash("_".join(sorted(self)))
+
 
 class ReleaseStatus(enum.StrEnum):
     """Constants for the various Musicbrainz release statuses"""
