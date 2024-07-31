@@ -62,7 +62,7 @@ def _get_typesense_client() -> typesense.Client:
                 'protocol': _typesense_url.scheme,
             }],
             'api_key': _typesense_api_key,
-            'connection_timeout_seconds': 1000000
+            'connection_timeout_seconds': 30
         })
         _logger.debug("Connected Typesense client")
     return _typesense_client

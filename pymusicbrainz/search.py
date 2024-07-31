@@ -357,7 +357,8 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
     recording_ids = [recording.id for recording in songs_found if recording.is_sane(artist_query, title_query)]
     result = search_by_recording_id(recording_ids)
-    result[SearchType.CANONICAL] = canonical
+    if canonical is not None:
+        result[SearchType.CANONICAL] = canonical
 
     return result
 
