@@ -6,8 +6,8 @@ build-backend = "setuptools.build_meta"
 
 
 [project]
-name = "musicbrainz_wrapper"
-version = "0.1.0"
+name = "musicbrainz"
+version = "0.2.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,7 +22,6 @@ dependencies = [
     "python-dateutil",
     "rapidfuzz",
     "pyacoustid",
-    "zstandard",
     "sqlalchemy-utils",
     "requests-file",
     "typesense",
