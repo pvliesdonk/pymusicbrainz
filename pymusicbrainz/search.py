@@ -198,11 +198,12 @@ def _search_release_group_by_recording_ids(
     found_rgs = []
     for artist in artists:
         for rg in getattr(artist, search_field):
-            _logger.debug(f"Searching in releases for '{rg.artist_credit_phrase}' - '{rg.title}' ")
-            for recording in rg.recordings:
-                if recording in recordings:
+            _logger.debug(f"Searching in '{rg.artist_credit_phrase}' - '{rg.title}' ")
+            for recording in recordings:
+                if recording in rg:
                     track, release = find_track_release_for_release_group_recording(rg, recording)
                     if (rg, recording, release, track) not in found_rgs:
+                        _logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
                         found_rgs.append((rg, recording, release, track))
 
     found_rgs = sorted(found_rgs, key=lambda x: (x[0], x[2], x[3].position))

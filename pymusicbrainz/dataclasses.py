@@ -2,7 +2,7 @@ import datetime
 import logging
 import re
 from abc import ABC
-from functools import cached_property
+from functools import cached_property, cache
 
 import mbdata.models
 import rapidfuzz
@@ -94,12 +94,13 @@ class Artist(MusicBrainzObject):
 
         return stmt
 
-    def get_release_groups(self,
+    @cache
+    def _get_release_group_ids(self,
                            primary_type: ReleaseType = None,
                            secondary_types: list[ReleaseType] | None = [],
                            credited: bool = True,
-                           contributing: bool = False) -> list["ReleaseGroup"]:
-        from .object_cache import get_release_group
+                           contributing: bool = False) -> list["ReleaseGroupID"]:
+
 
         s = f"Fetching"
         if primary_type is not None:
@@ -120,7 +121,16 @@ class Artist(MusicBrainzObject):
                                              credited=credited, contributing=contributing)
             result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt).all()
 
-        return [get_release_group(rg) for rg in result]
+        return [ReleaseGroupID(rg) for rg in result]
+
+    def get_release_groups(self,
+                           primary_type: ReleaseType = None,
+                           secondary_types: list[ReleaseType] | None = [],
+                           credited: bool = True,
+                           contributing: bool = False) -> list["ReleaseGroup"]:
+        from .object_cache import get_release_group
+        return [get_release_group(id) for id in self._get_release_group_ids(primary_type, secondary_types, credited, contributing)]
+
 
     @cached_property
     def release_groups(self) -> list["ReleaseGroup"]:
@@ -293,8 +303,14 @@ class ReleaseGroup(MusicBrainzObject):
                     result.append(rec)
         return result
 
+    @cached_property
+    def _recording_ids(self) -> list["RecordingID"]:
+        with get_db_session() as session:
+            stmt = sa.select()
+        return []
+
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
-        from .util import split_artist, flatten_title
+        from .util import flatten_title
 
         artist_ratio = rapidfuzz.fuzz.WRatio(
             flatten_title(artist_name=self.artist_credit_phrase),
@@ -343,7 +359,7 @@ class ReleaseGroup(MusicBrainzObject):
         if isinstance(item, Release):
             return item.release_group == self
         if isinstance(item, Recording):
-            return item in self.recordings
+            return any(item in release for release in self.releases)
         if isinstance(item, Medium):
             return item.release.release_group == self
         if isinstance(item, Track):
@@ -429,7 +445,7 @@ class Release(MusicBrainzObject):
         return result
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
-        from .util import split_artist, flatten_title
+        from .util import flatten_title
         artist_ratio = rapidfuzz.fuzz.WRatio(
             flatten_title(artist_name=self.artist_credit_phrase),
             flatten_title(artist_name=artist_query),
@@ -687,7 +703,7 @@ class Recording(MusicBrainzObject):
             return self in item.performances['all']
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
-        from .util import split_artist, flatten_title
+        from .util import flatten_title
         artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
 
         title_ratio = rapidfuzz.process.extractOne(
