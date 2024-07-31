@@ -7,6 +7,7 @@ DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/
 logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
 logging.getLogger().setLevel(logging.DEBUG)
 logging.getLogger('musicbrainzngs').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 logging.info(f"Configuring database at {DB_URI}")
 musicbrainz.configure_database(db_url=DB_URI)
@@ -21,6 +22,10 @@ c = musicbrainz.get_release("a6f67b96-5f97-495c-b224-ec93d521f922")
 d = musicbrainz.get_recording("77601dfe-df14-4894-a8b7-c5c68ca25e11")
 d1 = d.performance_of
 d2 = d.siblings
+
+dd = musicbrainz.get_recording("5119b360-2055-4f97-a795-f633df01031e")
+dd1 = dd.performance_of
+dd2 = dd.siblings
 
 e = musicbrainz.get_work("3705e2ef-c3d4-3683-9bd7-8574d1749a8d")
 e1 = e.performances

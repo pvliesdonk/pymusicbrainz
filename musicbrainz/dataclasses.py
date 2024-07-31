@@ -183,21 +183,17 @@ class Artist(MusicBrainzObject):
 
     def __contains__(self, item):
         if isinstance(item, Release):
-            raise NotImplementedError
-            return any([release_id == item.id for release_id in self.release_ids])
-        if isinstance(item, ReleaseID):
-            raise NotImplementedError
-            return any([release_id == item for release_id in self.release_ids])
+            return self in item.artists
         if isinstance(item, ReleaseGroup):
-            return any([rg == item for rg in self.release_groups])
-        if isinstance(item, ReleaseGroupID):
-            return any([rg.id == item for rg in self.release_groups])
+            return self in item.artists
         if isinstance(item, Recording):
+            return self in item.artists
+        if isinstance(item, Medium):
+            return self in item.release.artists
+        if isinstance(item, Track):
+            return self in item.artists
+        if isinstance(item, Work):
             raise NotImplementedError
-            return any([recording_id == item.id for recording_id in self.recording_ids])
-        if isinstance(item, RecordingID):
-            raise NotImplementedError
-            return any([recording_id == item for recording_id in self.recording_ids])
 
     def __hash__(self):
         return hash(self.id)
@@ -343,17 +339,17 @@ class ReleaseGroup(MusicBrainzObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return any([artist_id == item.id for artist_id in self.artist_ids])
-        if isinstance(item, ArtistID):
-            return any([artist_id == item for artist_id in self.artist_ids])
+            return item in self.artists
         if isinstance(item, Release):
-            return any([release_id == item.id for release_id in self.release_ids])
-        if isinstance(item, ReleaseID):
-            return any([release_id == item for release_id in self.release_ids])
+            return item.release_group == self
         if isinstance(item, Recording):
-            return any([recording_id == item.id for recording_id in self.recording_ids])
-        if isinstance(item, RecordingID):
-            return any([recording_id == item for recording_id in self.recording_ids])
+            return item in self.recordings
+        if isinstance(item, Medium):
+            return item.release.release_group == self
+        if isinstance(item, Track):
+            return item.release.release_group == self
+        if isinstance(item, Work):
+            raise NotImplementedError
 
     def __hash__(self):
         return hash(self.id)
@@ -462,27 +458,28 @@ class Release(MusicBrainzObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return any([artist_id == item.id for artist_id in self.artist_ids])
-        if isinstance(item, ArtistID):
-            return any([artist_id == item for artist_id in self.artist_ids])
+            return item in self.artists
+        if isinstance(item, ReleaseGroup):
+            return self.release_group == item
         if isinstance(item, Recording):
-            return any([recording_id == item.id for recording_id in self.recording_ids])
-        if isinstance(item, RecordingID):
-            return any([recording_id == item for recording_id in self.recording_ids])
+            return item in self.recordings
+        if isinstance(item, Medium):
+            return item.release == item
+        if isinstance(item, Track):
+            return item.release == item
+        if isinstance(item, Work):
+            raise NotImplementedError
 
-    def __lt__(
-            self,
-            other):
+    def __lt__(self, other):
         if isinstance(other, Release):
-            if self.release_group != other.release_group:
-                return self.release_group.first_release_date < other.release_group.first_release_date
 
-            if self.date is not None and other.date is not None:
-                return self.date < other.date
+            if self.first_release_date is not None:
+                if other.first_release_date is not None:
+                    return self.first_release_date < other.first_release_date
+                else:
+                    return True
             else:
-                return True
-                #raise IncomparableError(self, other)
-        return NotImplemented
+                return False
 
     def __hash__(self):
         return hash(self.id)
@@ -584,17 +581,28 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
+        work = self.performance_of
         if len(self.performance_type) == 0:
-            _logger.error("Appending regular performance siblings")
-            work = self.performance_of
             for r in work.performances['no-attr']:
-                if r not in result:
+                if r not in result and r.artists == self.artists:
+                    result.append(r)
+            return result
+        elif len(self.performance_type) == 1:
+            _logger.info(f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+            for r in work.performances[self.performance_type[0]]:
+                if r not in result and r.artists == self.artists:
                     result.append(r)
             return result
         else:
-            _logger.error(
-                f"Recording is not a regular performance ({'/'.join(self.performance_type)}) for '{self.artist_credit_phrase}' - '{self.title}' [{self.id}]")
-            return []
+            _logger.info(f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+            options = work.performances[self.performance_type[0]]
+            for i in range(1,len(self.performance_type)):
+                options = [rec for rec in options if rec in work.performances[self.performance_type[i]]]
+
+            for r in options:
+                if r not in result and r.artists == self.artists:
+                    result.append(r)
+            return result
 
     @cached_property
     def streams(self) -> list[str]:
@@ -664,6 +672,20 @@ class Recording(MusicBrainzObject):
             else:
                 return False
 
+    def __contains__(self, item):
+        if isinstance(item, Artist):
+            return item in self.artists
+        if isinstance(item, ReleaseGroup):
+            return self in item.recordings
+        if isinstance(item, Release):
+            return self in item.recordings
+        if isinstance(item, Medium):
+            return any([self == t.recording for t in item.tracks])
+        if isinstance(item, Track):
+            return item.recording == self
+        if isinstance(item, Work):
+            return self in item.performances['all']
+
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         from .util import split_artist, flatten_title
         artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
@@ -676,9 +698,9 @@ class Recording(MusicBrainzObject):
         )[1]
 
         if not artist_sane:
-            _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
+            _logger.error(f"{self} is not a sane candidate for artist {artist_query}")
         elif title_ratio < cut_off:
-            _logger.debug(f"{self} is not a sane candidate for title {title_query}")
+            _logger.error(f"{self} is not a sane candidate for title {title_query}")
         else:
             return True
 
@@ -704,7 +726,7 @@ class Medium(MusicBrainzObject):
             self._release_id: ReleaseID = ReleaseID(str(m.release.gid))
             self._track_ids: list[TrackID] = [TrackID(str(t.gid)) for t in m.tracks]
             self.track_count = m.track_count
-            self.format = m.format.name
+            self.format = m.format.name if m.format is not None else None
 
     @cached_property
     def release(self) -> Release:
@@ -722,6 +744,19 @@ class Medium(MusicBrainzObject):
                 + (f" - {self.title}" if self.title else "")
         )
 
+    def __contains__(self, item):
+        if isinstance(item, Artist):
+            return any([item in t.artists for t in self.tracks])
+        if isinstance(item, ReleaseGroup):
+            return self.release.release_group == item
+        if isinstance(item, Release):
+            return self.release == item
+        if isinstance(item, Recording):
+            return any([item == t.recording for t in self.tracks])
+        if isinstance(item, Track):
+            return item in self.tracks
+        if isinstance(item, Work):
+            raise NotImplementedError
 
 class Track(MusicBrainzObject):
 
@@ -761,6 +796,19 @@ class Track(MusicBrainzObject):
     def __repr__(self):
         return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"
 
+    def __contains__(self, item):
+        if isinstance(item, Artist):
+            return item in self.recording.artists
+        if isinstance(item, ReleaseGroup):
+            return self.release.release_group == item
+        if isinstance(item, Release):
+            return self.release == item
+        if isinstance(item, Medium):
+            return self.medium == item
+        if isinstance(item, Recording):
+            return self.recording == item
+        if isinstance(item, Work):
+            return self.recording in item.performances['all']
 
 class Work(MusicBrainzObject):
     def __init__(self,
@@ -830,3 +878,17 @@ class Work(MusicBrainzObject):
 
     def __hash__(self):
         return hash(self.id)
+
+    def __contains__(self, item):
+        if isinstance(item, Artist):
+            raise NotImplementedError
+        if isinstance(item, ReleaseGroup):
+            raise NotImplementedError
+        if isinstance(item, Release):
+            raise NotImplementedError
+        if isinstance(item, Medium):
+            raise NotImplementedError
+        if isinstance(item, Track):
+            return item.recording in self.performances['all']
+        if isinstance(item, Recording):
+            return item in self.performances['all']

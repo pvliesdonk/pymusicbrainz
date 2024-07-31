@@ -167,10 +167,12 @@ def _search_release_group_by_recording_ids(
 
     # also search for recording siblings
     if use_siblings:
+        new_recordings = []
         for recording in recordings:
             for sibling in recording.siblings:
                 if sibling not in recordings:
-                    recordings.append(sibling)
+                    new_recordings.append(sibling)
+        recordings = new_recordings
 
     match search_type:
         case SearchType.CANONICAL:
@@ -196,7 +198,7 @@ def _search_release_group_by_recording_ids(
                     if (rg, recording, release, track) not in found_rgs:
                         found_rgs.append((rg, recording, release, track))
 
-    found_rgs = sorted(found_rgs, key=lambda x: x[2])
+    found_rgs = sorted(found_rgs, key=lambda x: (x[0], x[2], x[3].position))
     if len(found_rgs) > 0:
         _logger.debug(f"Found {found_rgs[0][3]}")
         return {
@@ -285,7 +287,7 @@ def search_by_recording_id(
             recording_ids=recording_ids,
             search_type=SearchType(search_type),
             use_siblings=use_siblings,
-            cut_off=cut_off) for search_type in SearchType}
+            cut_off=cut_off) for search_type in SearchType if search_type not in [SearchType.CANONICAL, SearchType.ALL]}
 
     return {k: v for k, v in results.items() if v is not None}
 
