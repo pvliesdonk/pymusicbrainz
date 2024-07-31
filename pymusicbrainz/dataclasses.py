@@ -121,7 +121,7 @@ class Artist(MusicBrainzObject):
                                              credited=credited, contributing=contributing)
             result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt).all()
 
-        return [ReleaseGroupID(rg) for rg in result]
+        return [ReleaseGroupID(rg.gid) for rg in result]
 
     def get_release_groups(self,
                            primary_type: ReleaseType = None,
