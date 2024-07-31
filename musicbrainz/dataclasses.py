@@ -13,9 +13,6 @@ from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, Recordi
     WorkID
 from .db import get_db_session
 from .exceptions import MBApiError
-from .object_cache import get_artist, get_release_group, get_release, get_recording, get_track, \
-    get_work, get_medium
-from .util import split_artist, flatten_title, parse_partial_date
 
 _logger = logging.getLogger(__name__)
 
@@ -102,6 +99,7 @@ class Artist(MusicBrainzObject):
                            secondary_types: list[ReleaseType] | None = [],
                            credited: bool = True,
                            contributing: bool = False) -> list["ReleaseGroup"]:
+        from .object_cache import get_release_group
 
         s = f"Fetching"
         if primary_type is not None:
@@ -154,6 +152,7 @@ class Artist(MusicBrainzObject):
                                        credited=True, contributing=True)
 
     def is_sane(self, artist_query: str, cut_off=70) -> bool:
+        from .util import split_artist, flatten_title
 
         artist_split = split_artist(artist_query)
 
@@ -208,6 +207,9 @@ class ReleaseGroup(MusicBrainzObject):
 
     def __init__(self,
                  in_obj: ReleaseGroupID | mbdata.models.ReleaseGroup | str) -> None:
+
+        from .object_cache import get_artist
+
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.ReleaseGroup):
 
@@ -255,6 +257,7 @@ class ReleaseGroup(MusicBrainzObject):
 
     @cached_property
     def first_release_date(self) -> datetime.date | None:
+        from .util import parse_partial_date
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.ReleaseGroupMeta).where(mbdata.models.ReleaseGroupMeta.id == self._db_id)
             rgm: mbdata.models.ReleaseGroupMeta = session.scalar(stmt)
@@ -276,6 +279,8 @@ class ReleaseGroup(MusicBrainzObject):
 
     @cached_property
     def releases(self) -> list["Release"]:
+        from .object_cache import get_release
+
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.Release).where(mbdata.models.Release.release_group_id == self._db_id)
             releases: list[mbdata.models.Release] = session.scalars(stmt).all()
@@ -293,6 +298,8 @@ class ReleaseGroup(MusicBrainzObject):
         return result
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
+        from .util import split_artist, flatten_title
+
         artist_ratio = rapidfuzz.fuzz.WRatio(
             flatten_title(artist_name=self.artist_credit_phrase),
             flatten_title(artist_name=artist_query),
@@ -356,6 +363,8 @@ class Release(MusicBrainzObject):
 
     def __init__(self,
                  in_obj: ReleaseID | mbdata.models.Release | str) -> None:
+        from .object_cache import get_artist
+        from .util import parse_partial_date
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Release):
                 rel: mbdata.models.Release = session.merge(in_obj)
@@ -394,10 +403,12 @@ class Release(MusicBrainzObject):
 
     @cached_property
     def release_group(self) -> ReleaseGroup:
+        from .object_cache import get_release_group
         return get_release_group(self._release_group_id)
 
     @cached_property
     def mediums(self) -> list["Medium"]:
+        from .object_cache import get_medium
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.Medium).where(mbdata.models.Medium.release_id == str(self._db_id))
             ms: list[mbdata.models.Medium] = session.scalars(stmt).all()
@@ -422,6 +433,7 @@ class Release(MusicBrainzObject):
         return result
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
+        from .util import split_artist, flatten_title
         artist_ratio = rapidfuzz.fuzz.WRatio(
             flatten_title(artist_name=self.artist_credit_phrase),
             flatten_title(artist_name=artist_query),
@@ -480,6 +492,8 @@ class Recording(MusicBrainzObject):
 
     def __init__(self,
                  in_obj: RecordingID | mbdata.models.Recording | str) -> None:
+        from .object_cache import get_artist
+        from .util import parse_partial_date
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Recording):
                 rec: mbdata.models.Recording = session.merge(in_obj)
@@ -518,6 +532,7 @@ class Recording(MusicBrainzObject):
 
     @cached_property
     def performance_of(self) -> "Work":
+        from .object_cache import get_work
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.LinkRecordingWork). \
                 where(mbdata.models.LinkRecordingWork.entity0_id == str(self._db_id))
@@ -650,6 +665,7 @@ class Recording(MusicBrainzObject):
                 return False
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
+        from .util import split_artist, flatten_title
         artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
 
         title_ratio = rapidfuzz.process.extractOne(
@@ -692,10 +708,12 @@ class Medium(MusicBrainzObject):
 
     @cached_property
     def release(self) -> Release:
+        from .object_cache import get_release
         return get_release(self._release_id)
 
     @cached_property
     def tracks(self) -> list["Track"]:
+        from .object_cache import get_track
         return [get_track(t) for t in self._track_ids]
 
     def __repr__(self):
@@ -709,6 +727,7 @@ class Track(MusicBrainzObject):
 
     def __init__(self,
                  in_obj: TrackID | mbdata.models.Track | str) -> None:
+        from .object_cache import get_artist, get_medium
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Track):
                 tr: mbdata.models.Track = session.merge(in_obj)
@@ -732,6 +751,7 @@ class Track(MusicBrainzObject):
 
     @cached_property
     def recording(self) -> Recording:
+        from .object_cache import get_recording
         return get_recording(self._recording_id)
 
     @cached_property
@@ -763,6 +783,7 @@ class Work(MusicBrainzObject):
     @cached_property
     def performances(self) -> dict[str, list[Recording]]:
         results = {'all': [], 'no-attr': []}
+        from .object_cache import get_recording
         with get_db_session() as session:
 
             stmt = (

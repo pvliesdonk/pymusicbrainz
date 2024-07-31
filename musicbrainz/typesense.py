@@ -14,7 +14,7 @@ _typesense_api_key: str = constants.DEFAULT_TYPESENSE_API_KEY
 _typesense_search_field: str = constants.DEFAULT_TYPESENSE_SEARCH_FIELD
 _typesense_collection: str = constants.DEFAULT_TYPESENSE_COLLECTION
 
-_typesense_client: typesense.Client
+_typesense_client: typesense.Client = None
 
 _logger = logging.getLogger(__name__)
 
