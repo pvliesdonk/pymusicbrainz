@@ -189,11 +189,18 @@ def _search_release_group_by_recording_ids(
             search_field = "release_groups"
 
     # find the actual release groups
-    found_rgs = []
+    artists = []
     for recording in recordings:
         for artist in recording.artists:
-            for rg in getattr(artist, search_field):
-                if recording in rg:
+            if artist not in artists:
+                artists.append(artist)
+
+    found_rgs = []
+    for artist in artists:
+        for rg in getattr(artist, search_field):
+            _logger.debug(f"Searching in releases for '{rg.artist_credit_phrase}' - '{rg.title}' ")
+            for recording in rg.recordings:
+                if recording in recordings:
                     track, release = find_track_release_for_release_group_recording(rg, recording)
                     if (rg, recording, release, track) not in found_rgs:
                         found_rgs.append((rg, recording, release, track))
