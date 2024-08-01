@@ -176,7 +176,7 @@ def _search_release_group_by_recording_ids(
 
     # also search for recording siblings
     if use_siblings:
-        new_recordings = []
+        new_recordings = recordings
         for recording in recordings:
             for sibling in recording.siblings:
                 if sibling not in new_recordings:
