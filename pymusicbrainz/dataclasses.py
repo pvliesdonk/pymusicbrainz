@@ -567,7 +567,10 @@ class Release(MusicBrainzObject):
         return artist_ratio > cut_off and title_ratio > cut_off
 
     def __repr__(self):
-        return f"Release:  {self.artist_credit_phrase}: {self.title} [{self.id}]"
+        s2 = (
+            f" {self.first_release_date}" if self.first_release_date is not None else ""
+        )
+        return f"Release:  {self.artist_credit_phrase}: {self.title}{s2} [{self.id}]"
 
     def __eq__(self, other):
         if isinstance(other, Release):
