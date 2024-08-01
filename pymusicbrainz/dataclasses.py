@@ -3,6 +3,7 @@ import logging
 import re
 from abc import ABC
 from functools import cached_property, cache
+from typing import Optional
 
 import mbdata.models
 import rapidfuzz
@@ -646,12 +647,15 @@ class Recording(MusicBrainzObject):
         return self.performance_type
 
     @cached_property
-    def performance_of(self) -> "Work":
+    def performance_of(self) -> Optional["Work"]:
         from .object_cache import get_work
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.LinkRecordingWork). \
                 where(mbdata.models.LinkRecordingWork.entity0_id == str(self._db_id))
             res: mbdata.models.LinkRecordingWork = session.scalar(stmt)
+            if res is None:
+                self.performance_type = []
+                return None
             w = get_work(res.work)
 
             stmt = sa.select(mbdata.models.LinkAttribute). \
@@ -700,6 +704,8 @@ class Recording(MusicBrainzObject):
     def siblings(self) -> list["Recording"]:
         result = []
         work = self.performance_of
+        if work is None:
+            return []
         if len(self.performance_type) == 0:
             for r in work.performances['no-attr']:
                 if r not in result and r.artists == self.artists:

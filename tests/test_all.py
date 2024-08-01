@@ -17,6 +17,10 @@ pymusicbrainz.configure_typesense()
 
 A = pymusicbrainz.search_song('The Beatles', 'I Feel Fine')
 
+B = pymusicbrainz.search_song('Marco', 'Binnen')
+
+C =pymusicbrainz.search_song("DJ Paul Elstak", "Rainbow in the Sky")
+
 a = pymusicbrainz.get_artist("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
 a1 = a.release_group_ids
 b = pymusicbrainz.get_release_group("94e8bbe7-788d-3000-8e40-57b7591d4fb4")

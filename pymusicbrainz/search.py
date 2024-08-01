@@ -18,9 +18,9 @@ _logger = logging.getLogger(__name__)
 
 
 def search_song_musicbrainz(
-        artist_query: str,
+        artist_query: str | Artist,
         title_query: str,
-        date: datetime.date = None,
+        strict: bool = True,
         cut_off: int = 90) -> list["Recording"]:
     """Search for a recording in the Musicbrainz API
 
@@ -35,13 +35,18 @@ def search_song_musicbrainz(
     result_ids = []
 
     search_params = {
-        "artist": artist_query,
-        "alias": title_query,  # or "recording"
+        "recording": title_query,  # "alias" or "recording"
         "limit": 100,
         "status": str(ReleaseStatus.OFFICIAL),
         "video": False,
-        "strict": True
+        "strict": strict
     }
+
+    if isinstance(artist_query, Artist):
+        search_params["arid"] = str(artist_query.id)
+    if isinstance(artist_query, str):
+        search_params["artist"] = artist_query
+
 
     try:
 
@@ -72,6 +77,11 @@ def search_song_musicbrainz(
 
         result = sorted(result, key=lambda x: x[1], reverse=True)
         result = [x[0] for x in result]
+
+        normalized_result = [x for x in result if x.is_normal_performance]
+        if len(normalized_result) > 0:
+            _logger.debug(f"Shortened to {len(normalized_result)} results that are normal performances")
+            result = normalized_result
         return result
     except musicbrainzngs.WebServiceError as ex:
         raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
@@ -116,7 +126,6 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
                         result.append(artist_id)
         result = [get_artist(x) for x in result]
         result = [x for x in result if x.is_sane(artist_query, cut_off)]
-        result = sorted(result, reverse=True)
         _logger.debug(f"Search gave us {len(result)} results above cutoff threshold")
         return result
     except musicbrainzngs.WebServiceError as ex:
@@ -170,7 +179,7 @@ def _search_release_group_by_recording_ids(
         new_recordings = []
         for recording in recordings:
             for sibling in recording.siblings:
-                if sibling not in recordings:
+                if sibling not in new_recordings:
                     new_recordings.append(sibling)
         recordings = new_recordings
 
@@ -354,18 +363,23 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
 
     canonical = search_song_canonical(artist_query=artist_query, title_query=title_query)
 
-    songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
+    songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off, strict=True)
+
+    if len(songs_found) == 0:
+        _logger.info(f"Trying less restrictive search")
+        songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
+                                              strict=False)
     recording_ids = [recording.id for recording in songs_found] # if recording.is_sane(artist_query, title_query)
 
     if len(recording_ids) == 0:
-        if len(canonical) > 0:
+        if canonical is not None:
             _logger.info(f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical['recording']}.")
             recording_ids = [canonical['recording'].id]
         else:
             _logger.info(f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
-            artists = search_artist_musicbrainz(artist_query=artist_query)
+            artists = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
-                songs_found = search_song_musicbrainz(artist_query=artist.name, title_query=title_query, cut_off=cut_off)
+                songs_found = search_song_musicbrainz(artist_query=artist, title_query=title_query, cut_off=cut_off)
                 recording_ids.extend([recording.id for recording in songs_found]) # if recording.is_sane(artist_query, title_query)
 
         if len(recording_ids) == 0:
