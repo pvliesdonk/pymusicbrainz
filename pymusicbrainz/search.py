@@ -207,12 +207,12 @@ def _search_release_group_by_recording_ids(
     found_rgs = []
     for artist in artists:
         for rg in getattr(artist, search_field):
-            _logger.debug(f"Searching in {rg}")
+            #_logger.debug(f"Searching in {rg}")
             for recording in recordings:
                 if recording in rg:
-                    track, release = find_track_release_for_release_group_recording(rg, recording)
+                    release, track = find_track_release_for_release_group_recording(rg, recording)
                     if (rg, recording, release, track) not in found_rgs:
-                        _logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
+                        #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
                         found_rgs.append((rg, recording, release, track))
 
     found_rgs = sorted(found_rgs, key=lambda x: (x[0], x[2], x[3].position))
@@ -424,13 +424,20 @@ def search_name_by_type(
 
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
+    potential_results = []
     for track in release.tracks:
         if track.recording == recording:
-            return track
+            potential_results.append(track)
+    return min(potential_results)
 
 
-def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: Recording) -> tuple[Track, Release]:
+def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: Recording) -> tuple[Release, Track]:
+    potential_results = []
     for r in rg.releases:
         for track in r.tracks:
             if track.recording == recording:
-                return track, r
+               potential_results.append((r, track))
+    # do some sorting/selection
+    potential_results = sorted(potential_results)
+    return potential_results[0]
+

@@ -566,6 +566,19 @@ class Release(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
+    @cached_property
+    def country(self) -> list[str]:
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.ReleaseCountry)
+                .where(mbdata.models.ReleaseCountry.release_id == self._db_id)
+            )
+            rc: list[mbdata.models.ReleaseCountry] = session.scalars(stmt).all()
+
+            result = [c.country.area.iso_3166_1_codes[0].code for c in rc]
+
+        return result
+
     def __repr__(self):
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
@@ -597,7 +610,10 @@ class Release(MusicBrainzObject):
 
             if self.first_release_date is not None:
                 if other.first_release_date is not None:
-                    return self.first_release_date < other.first_release_date
+                    if self.first_release_date != other.first_release_date:
+                        return self.first_release_date < other.first_release_date
+                    else:
+                        return self.first_release_date < other.first_release_date
                 else:
                     return True
             else:
@@ -922,6 +938,10 @@ class Track(MusicBrainzObject):
     @cached_property
     def release(self) -> Release:
         return self.medium.release
+
+    def __lt__(self, other):
+        if isinstance(other, Track):
+            return self.position < other.position
 
     def __repr__(self):
         return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"

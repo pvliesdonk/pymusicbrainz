@@ -15,6 +15,11 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+c = pymusicbrainz.get_release("a6f67b96-5f97-495c-b224-ec93d521f922")
+c.country
+
+Z = pymusicbrainz.search_song('Britney Spears', 'Born To Make You Happy')
+
 A = pymusicbrainz.search_song('The Beatles', 'I Feel Fine')
 
 B = pymusicbrainz.search_song('Marco', 'Binnen')
