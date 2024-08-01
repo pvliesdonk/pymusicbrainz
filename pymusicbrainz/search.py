@@ -355,11 +355,36 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     canonical = search_song_canonical(artist_query=artist_query, title_query=title_query)
 
     songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off)
-    recording_ids = [recording.id for recording in songs_found if recording.is_sane(artist_query, title_query)]
+    recording_ids = [recording.id for recording in songs_found] # if recording.is_sane(artist_query, title_query)
+
+    if len(recording_ids) == 0:
+        if len(canonical) > 0:
+            _logger.info(f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical['recording']}.")
+            recording_ids = [canonical['recording'].id]
+        else:
+            _logger.info(f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
+            artists = search_artist_musicbrainz(artist_query=artist_query)
+            for artist in artists:
+                songs_found = search_song_musicbrainz(artist_query=artist.name, title_query=title_query, cut_off=cut_off)
+                recording_ids.extend([recording.id for recording in songs_found]) # if recording.is_sane(artist_query, title_query)
+
+        if len(recording_ids) == 0:
+            _logger.error(f"No  recordings found for '{artist_query}' - '{title_query}'")
+            return {}
+
     result = search_by_recording_id(recording_ids)
+
     if canonical is not None:
         result[SearchType.CANONICAL] = canonical
-
+    elif len(result) > 0:
+        _logger.info(f"Retrying failed canonical search using search result")
+        for k,v in result.items():
+            rec: Recording = v['recording']
+            canonical = search_song_canonical(artist_query=rec.artist_credit_phrase, title_query=rec.title)
+            if canonical is not None:
+                _logger.debug(f"Found canonical result via search for {k.name}")
+                result[SearchType.CANONICAL] = canonical
+                break
     return result
 
 

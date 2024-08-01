@@ -3,6 +3,7 @@ from typing import Any
 
 import typesense
 import urllib3.util
+from typesense.exceptions import TypesenseClientError
 
 from . import constants
 from .datatypes import ArtistID, ReleaseID, RecordingID
@@ -74,29 +75,32 @@ def do_typesense_lookup(artist_name, recording_name) -> list[dict[str, Any]]:
     :param recording_name: Recording Name / Title
     :return: List of search results as Dicts with keys 'artist_credit_name', 'artist_ids', 'release_id' and 'recording_id'
     """
+    try:
+        client = _get_typesense_client()
+        query = flatten_title(artist_name, recording_name)
+        search_parameters = {'q': query, 'query_by': _typesense_search_field, 'prefix': 'no', 'num_typos': 5}
 
-    client = _get_typesense_client()
-    query = flatten_title(artist_name, recording_name)
-    search_parameters = {'q': query, 'query_by': _typesense_search_field, 'prefix': 'no', 'num_typos': 5}
+        _logger.debug(f"Search typesense collection {_typesense_collection} for '{_typesense_search_field}'~='{query}'.")
+        hits = client.collections[_typesense_collection].documents.search(search_parameters)
 
-    _logger.debug(f"Search typesense collection {_typesense_collection} for '{_typesense_search_field}'~='{query}'.")
-    hits = client.collections[_typesense_collection].documents.search(search_parameters)
+        output = []
+        for hit in hits['hits']:
+            doc = hit['document']
+            acn = doc['artist_credit_name']
+            artist_ids = doc['artist_mbids'].split(',')
+            release_id = doc['release_mbid']
 
-    output = []
-    for hit in hits['hits']:
-        doc = hit['document']
-        acn = doc['artist_credit_name']
-        artist_ids = doc['artist_mbids'].split(',')
-        release_id = doc['release_mbid']
+            recording_id = doc['recording_mbid']
+            output.append(
+                {
+                    'artist_credit_name': acn,
+                    'artist_ids': [ArtistID(x) for x in artist_ids],
+                    'release_id': ReleaseID(release_id),
+                    'recording_id': RecordingID(recording_id)
+                }
+            )
 
-        recording_id = doc['recording_mbid']
-        output.append(
-            {
-                'artist_credit_name': acn,
-                'artist_ids': [ArtistID(x) for x in artist_ids],
-                'release_id': ReleaseID(release_id),
-                'recording_id': RecordingID(recording_id)
-            }
-        )
-
-    return output
+        return output
+    except TypesenseClientError as ex:
+        _logger.exception("Could not get a response from Typesense server")
+        return []
