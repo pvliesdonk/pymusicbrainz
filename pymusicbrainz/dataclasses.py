@@ -47,6 +47,7 @@ class Artist(MusicBrainzObject):
             self.artist_type: str = a.type.name if a.type is not None else None
             self.sort_name: str = a.sort_name
             self.disambiguation: str = a.comment
+            self.country: str = a.area.iso_3166_1_codes[0].code
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -178,61 +179,74 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def release_groups(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALL, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALL,
+                                       secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
 
     @cached_property
     def release_group_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_group_ids(primary_type=ReleaseType.ALL, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True, contributing=False)
+        return self.get_release_group_ids(primary_type=ReleaseType.ALL,
+                                          secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def albums(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
 
     @cached_property
     def album_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
+                                          secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                           contributing=False)
 
     @cached_property
     def singles(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.SINGLE, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.SINGLE,
+                                       secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
 
     @cached_property
     def single_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_group_ids(primary_type=ReleaseType.SINGLE, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_group_ids(primary_type=ReleaseType.SINGLE,
+                                          secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                           contributing=False)
 
     @cached_property
     def eps(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.EP, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.EP,
+                                       secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
 
     @cached_property
     def ep_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_group_ids(primary_type=ReleaseType.EP, secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
+        return self.get_release_group_ids(primary_type=ReleaseType.EP,
+                                          secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                           contributing=False)
 
     @cached_property
     def studio_albums(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
 
     @cached_property
     def studio_album_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
 
     @cached_property
     def soundtracks(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                        credited=True, contributing=True)
 
     @cached_property
     def soundtrack_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM, secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
+                                          secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                           credited=True, contributing=True)
 
     def is_sane(self, artist_query: str, cut_off=70) -> bool:
@@ -364,11 +378,11 @@ class ReleaseGroup(MusicBrainzObject):
             releases: list[mbdata.models.Release] = session.scalars(stmt).all()
 
             return releases
-        
+
     @cached_property
     def releases(self) -> list["Release"]:
         from .object_cache import get_release
-        return [get_release(release) for release in self._releases_db_items]
+        return sorted([get_release(release) for release in self._releases_db_items])
 
     @cached_property
     def release_ids(self) -> list["ReleaseID"]:
@@ -396,7 +410,6 @@ class ReleaseGroup(MusicBrainzObject):
     @cached_property
     def recording_ids(self) -> list["RecordingID"]:
         return [RecordingID(str(recording.gid)) for recording in self._recordings_db_items]
-
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         from .util import flatten_title
@@ -484,6 +497,7 @@ class Release(MusicBrainzObject):
             self.disambiguation: str = rel.comment
             self.first_release_date: datetime.date = parse_partial_date(
                 rel.first_release.date) if rel.first_release is not None else None
+            self.country: list[str] = [c.country.area.iso_3166_1_codes[0].code for c in rel.country_dates]
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -501,6 +515,10 @@ class Release(MusicBrainzObject):
     @cached_property
     def url(self) -> str:
         return f"https://musicbrainz.org/release/{self.id}"
+
+    @cached_property
+    def is_country_of_artist(self) -> bool:
+        return any([a.country in self.country for a in self.artists])
 
     @cached_property
     def release_group(self) -> ReleaseGroup:
@@ -566,24 +584,14 @@ class Release(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
-    @cached_property
-    def country(self) -> list[str]:
-        with get_db_session() as session:
-            stmt = (
-                sa.select(mbdata.models.ReleaseCountry)
-                .where(mbdata.models.ReleaseCountry.release_id == self._db_id)
-            )
-            rc: list[mbdata.models.ReleaseCountry] = session.scalars(stmt).all()
-
-            result = [c.country.area.iso_3166_1_codes[0].code for c in rc]
-
-        return result
-
     def __repr__(self):
+        s1 = (f" [{self.country[0]}]" if len(self.country) == 1 else
+              (f" [{self.country[0]}+{len(self.country)}]" if len(self.country) > 1 else "")
+              )
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
         )
-        return f"Release:  {self.artist_credit_phrase}: {self.title}{s2} [{self.id}]"
+        return f"Release:  {self.artist_credit_phrase}: {self.title}{s2}{s1} [{self.id}]"
 
     def __eq__(self, other):
         if isinstance(other, Release):
@@ -612,8 +620,13 @@ class Release(MusicBrainzObject):
                 if other.first_release_date is not None:
                     if self.first_release_date != other.first_release_date:
                         return self.first_release_date < other.first_release_date
+                    elif self.is_country_of_artist != other.is_country_of_artist:
+                        return self.is_country_of_artist > other.is_country_of_artist
                     else:
-                        return self.first_release_date < other.first_release_date
+                        _logger.error("Multiple releases with same date and country:")
+                        _logger.error(self)
+                        _logger.error(other)
+                        return True
                 else:
                     return True
             else:
@@ -941,7 +954,10 @@ class Track(MusicBrainzObject):
 
     def __lt__(self, other):
         if isinstance(other, Track):
-            return self.position < other.position
+            if self.release == other.release:
+                return self.position < other.position
+            else:
+                return self.release < other.release
 
     def __repr__(self):
         return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"
