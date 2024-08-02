@@ -156,6 +156,7 @@ def search_song_canonical(
                 "track": track
                 }
     else:
+        _logger.info(f"No canonical release found for '{artist_query}' - '{title_query}' ")
         return None
 
 
