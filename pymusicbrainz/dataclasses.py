@@ -1018,7 +1018,7 @@ class Work(MusicBrainzObject):
             self._db_id: int = w.id
             self.title: str = w.name
             self.disambiguation: str = w.comment
-            self.type: str = w.type.name
+            self.type: str = w.type.name if w.type is None else None
 
     @cached_property
     def performances(self) -> dict[str, list[Recording]]:

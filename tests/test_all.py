@@ -21,6 +21,8 @@ a.country
 c = pymusicbrainz.get_release("ffefaec6-3cec-4252-ab9d-12d96543d4cf")
 c.countries
 
+xx = pymusicbrainz.get_work("1d2ab3b6-22e3-347c-98a3-fca099ffc910")
+
 Z = pymusicbrainz.search_song('Britney Spears', 'Born To Make You Happy')
 
 A = pymusicbrainz.search_song('The Beatles', 'I Feel Fine')
