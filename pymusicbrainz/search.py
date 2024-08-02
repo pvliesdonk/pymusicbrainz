@@ -225,7 +225,7 @@ def _search_release_group_by_recording_ids(
             "track": found_rgs[0][3]
         }
     else:
-        _logger.debug(f"Not release groups found")
+        _logger.debug(f"No release groups found for search type {search_type}")
         return None
 
 

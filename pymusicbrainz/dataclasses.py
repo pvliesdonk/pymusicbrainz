@@ -8,8 +8,9 @@ from typing import Optional
 import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
+from sqlalchemy import orm
 
-from .constants import PRIMARY_TYPES, SECONDARY_TYPES
+from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList
 from .db import get_db_session
@@ -47,7 +48,7 @@ class Artist(MusicBrainzObject):
             self.artist_type: str = a.type.name if a.type is not None else None
             self.sort_name: str = a.sort_name
             self.disambiguation: str = a.comment
-            self.country: str = a.area.iso_3166_1_codes[0].code
+
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -56,6 +57,20 @@ class Artist(MusicBrainzObject):
             result = session.scalars(stmt)
             out = [alias.name for alias in result]
             return out
+
+    @cached_property
+    def country(self) -> str|None:
+        with get_db_session() as session:
+            artist: mbdata.models.Artist = session.get(mbdata.models.Artist, self._db_id)
+            result = None
+            area: mbdata.models.Area = artist.area
+            while result is None:
+                if area is None:
+                    return None
+                if area.type_id == 1:
+                    return area.iso_3166_1_codes[0].code
+                _logger.error("UNKNOWN COUNTRY CODE")
+
 
     def url(self) -> str:
         return f"https://musicbrainz.org/artist/{self.id}"
@@ -497,7 +512,7 @@ class Release(MusicBrainzObject):
             self.disambiguation: str = rel.comment
             self.first_release_date: datetime.date = parse_partial_date(
                 rel.first_release.date) if rel.first_release is not None else None
-            self.country: list[str] = [c.country.area.iso_3166_1_codes[0].code for c in rel.country_dates]
+            self.countries: list[str] = [c.country.area.iso_3166_1_codes[0].code for c in rel.country_dates]
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -518,7 +533,15 @@ class Release(MusicBrainzObject):
 
     @cached_property
     def is_country_of_artist(self) -> bool:
-        return any([a.country in self.country for a in self.artists])
+        return any([a.country in self.countries for a in self.artists])
+
+    @cached_property
+    def is_international_release(self) -> bool:
+        return any([c in self.countries for c in INT_COUNTRIES])
+
+    @cached_property
+    def is_favorite_country(self) -> bool:
+        return any([c in self.countries for c in FAVORITE_COUNTRIES])
 
     @cached_property
     def release_group(self) -> ReleaseGroup:
@@ -585,8 +608,8 @@ class Release(MusicBrainzObject):
         return artist_ratio > cut_off and title_ratio > cut_off
 
     def __repr__(self):
-        s1 = (f" [{self.country[0]}]" if len(self.country) == 1 else
-              (f" [{self.country[0]}+{len(self.country)}]" if len(self.country) > 1 else "")
+        s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
+              (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
               )
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
@@ -622,10 +645,12 @@ class Release(MusicBrainzObject):
                         return self.first_release_date < other.first_release_date
                     elif self.is_country_of_artist != other.is_country_of_artist:
                         return self.is_country_of_artist > other.is_country_of_artist
+                    elif self.is_favorite_country != other.is_favorite_country:
+                        return self.is_favorite_country > other.is_favorite_country
                     else:
-                        _logger.error("Multiple releases with same date and country:")
-                        _logger.error(self)
-                        _logger.error(other)
+                        #_logger.error("Multiple releases with same date and country:")
+                        #_logger.error(self)
+                        #_logger.error(other)
                         return True
                 else:
                     return True
