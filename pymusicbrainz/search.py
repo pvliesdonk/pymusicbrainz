@@ -145,7 +145,7 @@ def search_song_canonical(
     _logger.debug("Doing a lookup for canonical release")
     canonical_hits = _search_typesense(artist_query, title_query)
     if len(canonical_hits) > 0:
-        _logger.info("Found canonical release according to MusicBrainz Canonical dataset")
+        _logger.info(f"Found canonical release for '{artist_query}' - '{title_query}")
         rg: ReleaseGroup = canonical_hits[0]['release_group']
         recording: Recording = canonical_hits[0]['recording']
         release: Release = canonical_hits[0]['release']
@@ -217,7 +217,7 @@ def _search_release_group_by_recording_ids(
 
     found_rgs = sorted(found_rgs, key=lambda x: (x[0], x[2], x[3].position))
     if len(found_rgs) > 0:
-        _logger.debug(f"Found {found_rgs[0][3]}")
+        _logger.info(f"Found {found_rgs[0][3]} for searchtype {search_type}")
         return {
             "release_group": found_rgs[0][0],
             "recording": found_rgs[0][1],
