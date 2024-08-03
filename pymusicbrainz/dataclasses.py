@@ -787,40 +787,40 @@ class Recording(MusicBrainzObject):
                     result.append(r)
             return result
 
-    @cached_property
-    def streams(self) -> list[str]:
-        result = []
-        with get_db_session() as session:
-
-            base_stmt = (
-                sa.select(mbdata.models.URL, mbdata.models.Link, mbdata.models.LinkAttribute)
-                .select_from(
-                    sa.join(
-                        sa.join(mbdata.models.URL, mbdata.models.LinkRecordingURL).join(mbdata.models.Recording),
-                        sa.join(mbdata.models.Link, mbdata.models.LinkAttribute),
-                        isouter=True
-                    ))
-            )
-            stmt = base_stmt.where(mbdata.models.LinkRecordingURL.recording_id == str(self._db_id))
-
-            res: sa.ChunkedIteratorResult = session.execute(stmt)
-
-            if res.raw.rowcount == 0:
-                _logger.debug(f"Also looking for streams of siblings")
-
-                siblings = [str(s.id) for s in self.siblings]
-
-                stmt = base_stmt.where(mbdata.models.Recording.gid.in_(siblings))
-                res: list[mbdata.models.URL, mbdata.models.Link, mbdata.models.LinkAttribute] = session.execute(stmt)
-
-            for (url, link, la) in res:
-                if la is not None:
-                    if la.attribute_type_id == 582:  # video
-                        continue
-                if url.url not in result:
-                    result.append(url.url)
-
-        return result
+    # @cached_property
+    # def streams(self) -> list[str]:
+    #     result = []
+    #     with get_db_session() as session:
+    #
+    #         base_stmt = (
+    #             sa.select(mbdata.models.URL, mbdata.models.Link, mbdata.models.LinkAttribute)
+    #             .select_from(
+    #                 sa.join(
+    #                     sa.join(mbdata.models.URL, mbdata.models.LinkRecordingURL).join(mbdata.models.Recording),
+    #                     sa.join(mbdata.models.Link, mbdata.models.LinkAttribute),
+    #                     isouter=True
+    #                 ))
+    #         )
+    #         stmt = base_stmt.where(mbdata.models.LinkRecordingURL.recording_id == str(self._db_id))
+    #
+    #         res: sa.ChunkedIteratorResult = session.execute(stmt)
+    #
+    #         if res.raw.rowcount == 0:
+    #             _logger.debug(f"Also looking for streams of siblings")
+    #
+    #             siblings = [str(s.id) for s in self.siblings]
+    #
+    #             stmt = base_stmt.where(mbdata.models.Recording.gid.in_(siblings))
+    #             res: list[mbdata.models.URL, mbdata.models.Link, mbdata.models.LinkAttribute] = session.execute(stmt)
+    #
+    #         for (url, link, la) in res:
+    #             if la is not None:
+    #                 if la.attribute_type_id == 582:  # video
+    #                     continue
+    #             if url.url not in result:
+    #                 result.append(url.url)
+    #
+    #     return result
 
     @cached_property
     def spotify_id(self) -> str | None:

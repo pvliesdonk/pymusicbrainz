@@ -175,9 +175,13 @@ def _search_release_group_by_recording_ids(
     else:
         recordings = [get_recording(x) for x in recording_ids]
 
+    # check whether there are normal performances on board. Kill the others
+    if any([r.is_normal_performance for r in recordings]):
+        recordings = [r for r in recordings if r.is_normal_performance]
+
     # also search for recording siblings
     if use_siblings:
-        new_recordings = recordings
+        new_recordings = recordings.copy()
         for recording in recordings:
             for sibling in recording.siblings:
                 if sibling not in new_recordings:
