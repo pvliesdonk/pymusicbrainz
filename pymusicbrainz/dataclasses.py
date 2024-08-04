@@ -2,17 +2,17 @@ import datetime
 import logging
 import re
 from abc import ABC
+from collections.abc import Generator
 from functools import cached_property, cache
 from typing import Optional
 
 import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
-from sqlalchemy import orm
 
 from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
-    WorkID, SecondaryTypeList
+    WorkID, SecondaryTypeList, SearchType
 from .db import get_db_session
 from .exceptions import MBApiError
 
@@ -1084,3 +1084,91 @@ class Work(MusicBrainzObject):
             return item.recording in self.performances['all']
         if isinstance(item, Recording):
             return item in self.performances['all']
+
+
+class MusicbrainzSingleResult:
+
+    def __init__(self,
+                 release_group: ReleaseGroup,
+                 recording: Recording,
+                 release: Optional[Release] = None,
+                 track: Optional[Track] = None):
+        self.release_group = release_group
+        self.recording = recording
+        if release is None or track is None:
+            self.release, self.track = find_track_release_for_release_group_recording(release_group, recording)
+        else:
+            self.release = release
+            self.track = track
+
+    def __repr__(self):
+        return self.track.__repr__()
+
+    def __lt__(self, other):
+        if isinstance(other, MusicbrainzSingleResult):
+            return self.track < other.track
+
+
+class MusicbrainzListResult(list[MusicbrainzSingleResult]):
+
+    pass
+
+
+class MusicbrainzSearchResult:
+
+    def __init__(self):
+        self._dict : dict[SearchType, MusicbrainzListResult] = {}
+
+    def add_result(self, search_type: SearchType, result: MusicbrainzListResult) -> None:
+        self._dict[search_type] = result
+
+    def get_result(self, search_type: SearchType) -> Optional[MusicbrainzSingleResult]:
+        if search_type in self._dict.keys():
+            self._dict[search_type].sort()
+            return self._dict[search_type][0]
+        return None
+
+    def is_empty(self) -> bool:
+        return len(self._dict) == 0
+
+    def get_canonical(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.CANONICAL)
+
+    def get_studio_album(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.STUDIO_ALBUM)
+
+    def get_all(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.ALL)
+
+    def get_single(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.SINGLE)
+
+    def get_ep(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.EP)
+
+    def get_soundtrack(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.SOUNDTRACK)
+
+    def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
+        for search_type in SearchType:
+            r = self.get_result(search_type)
+            if r is not None:
+                yield search_type, r
+
+
+def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
+    potential_results = []
+    for track in release.tracks:
+        if track.recording == recording:
+            potential_results.append(track)
+    return min(potential_results)
+
+
+def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: Recording) -> tuple[Release, Track]:
+    potential_results = []
+    for r in rg.releases:
+        for track in r.tracks:
+            if track.recording == recording:
+                potential_results.append((r, track))
+    # do some sorting/selection
+    return min(potential_results)

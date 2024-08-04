@@ -15,7 +15,7 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
-aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
+#aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
 
 a = pymusicbrainz.get_artist("019cdf80-f8fe-4b2e-ad34-a84285427848")
 a.country

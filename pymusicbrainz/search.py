@@ -1,13 +1,13 @@
-import datetime
 import logging
 import pathlib
-from typing import Sequence
+from typing import Sequence, Optional
 
 import acoustid
 import musicbrainzngs
 
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY
-from .dataclasses import Recording, Artist, ReleaseGroup, MusicBrainzObject, Release, Track
+from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
+    MusicbrainzSingleResult, MusicbrainzListResult
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
 from .exceptions import MBApiError
 from .typesense import do_typesense_lookup
@@ -46,7 +46,6 @@ def search_song_musicbrainz(
         search_params["arid"] = str(artist_query.id)
     if isinstance(artist_query, str):
         search_params["artist"] = artist_query
-
 
     try:
 
@@ -135,7 +134,7 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
 def search_song_canonical(
         artist_query: str,
         title_query: str,
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     """Search for a recording in the list of canonical releases
 
     :param artist_query: Artist name
@@ -146,15 +145,12 @@ def search_song_canonical(
     canonical_hits = _search_typesense(artist_query, title_query)
     if len(canonical_hits) > 0:
         _logger.info(f"Found canonical release for '{artist_query}' - '{title_query}")
-        rg: ReleaseGroup = canonical_hits[0]['release_group']
-        recording: Recording = canonical_hits[0]['recording']
-        release: Release = canonical_hits[0]['release']
-        track: Track = find_track_for_release_recording(release, recording)
-        return {"release_group": rg,
-                "recording": recording,
-                "release": release,
-                "track": track
-                }
+        result: MusicbrainzListResult = MusicbrainzListResult()
+        for hit in canonical_hits:
+            r = MusicbrainzSingleResult(release_group=hit['release_group'], recording=hit['recording'])
+            result.append(r)
+        result.sort()
+        return result
     else:
         _logger.info(f"No canonical release found for '{artist_query}' - '{title_query}' ")
         return None
@@ -165,7 +161,7 @@ def _search_release_group_by_recording_ids(
         search_type: SearchType,
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     if cut_off is None:
         cut_off = 97
 
@@ -209,26 +205,20 @@ def _search_release_group_by_recording_ids(
             if artist not in artists:
                 artists.append(artist)
 
-    found_rgs = []
+    found_rgs: MusicbrainzListResult = MusicbrainzListResult()
     for artist in artists:
         for rg in getattr(artist, search_field):
-            #_logger.debug(f"Searching in {rg}")
             for recording in recordings:
                 if recording in rg:
-                    release, track = find_track_release_for_release_group_recording(rg, recording)
-                    if (rg, recording, release, track) not in found_rgs:
+                    single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
+                    if single_result not in found_rgs:
                         #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
-                        found_rgs.append((rg, recording, release, track))
+                        found_rgs.append(single_result)
 
-    found_rgs = sorted(found_rgs, key=lambda x: (x[0], x[2], x[3].position))
+    found_rgs.sort()
     if len(found_rgs) > 0:
         _logger.info(f"Found {found_rgs[0][3]} for searchtype {search_type}")
-        return {
-            "release_group": found_rgs[0][0],
-            "recording": found_rgs[0][1],
-            "release": found_rgs[0][2],
-            "track": found_rgs[0][3]
-        }
+        return found_rgs
     else:
         _logger.debug(f"No release groups found for search type {search_type}")
         return None
@@ -238,7 +228,7 @@ def search_studio_albums_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         search_type=SearchType.STUDIO_ALBUM,
@@ -251,7 +241,7 @@ def search_soundtracks_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         search_type=SearchType.SOUNDTRACK,
@@ -264,7 +254,7 @@ def search_eps_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         search_type=SearchType.EP,
@@ -277,7 +267,7 @@ def search_singles_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         search_type=SearchType.SINGLE,
@@ -290,7 +280,7 @@ def search_release_groups_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None
-) -> dict[str, MusicBrainzObject] | None:
+) -> Optional[MusicbrainzListResult]:
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
         search_type=SearchType.ALL,
@@ -304,15 +294,20 @@ def search_by_recording_id(
         use_siblings: bool = True,
         cut_off: int = None
 
-) -> dict[SearchType, dict[str, MusicBrainzObject]]:
-    results = {
-        search_type: _search_release_group_by_recording_ids(
+) -> MusicbrainzSearchResult:
+    results: MusicbrainzSearchResult = MusicbrainzSearchResult()
+    for search_type in SearchType:
+        if search_type in [SearchType.CANONICAL, SearchType.ALL]:
+            continue
+        res = _search_release_group_by_recording_ids(
             recording_ids=recording_ids,
             search_type=SearchType(search_type),
             use_siblings=use_siblings,
-            cut_off=cut_off) for search_type in SearchType if search_type not in [SearchType.CANONICAL, SearchType.ALL]}
+            cut_off=cut_off)
+        if res is not None:
+            results.add_result(search_type, res)
 
-    return {k: v for k, v in results.items() if v is not None}
+    return results
 
 
 def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> list[RecordingID]:
@@ -334,7 +329,7 @@ def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> l
 
 
 def search_fingerprint(file: pathlib.Path, cut_off: int = None) \
-        -> dict[SearchType, dict[str, MusicBrainzObject]]:
+        -> MusicbrainzSearchResult:
     recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
     return search_by_recording_id(recording_ids)
 
@@ -343,7 +338,7 @@ def search_fingerprint_by_type(
         file: pathlib.Path,
         search_type: SearchType,
         use_siblings: bool = True,
-        cut_off: int = None) -> dict[str, MusicBrainzObject]:
+        cut_off: int = None) -> MusicbrainzListResult:
     recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
 
     return _search_release_group_by_recording_ids(
@@ -355,7 +350,7 @@ def search_fingerprint_by_type(
 
 
 def search_song(artist_query: str, title_query: str, cut_off: int = None) \
-        -> dict[SearchType, dict[str, MusicBrainzObject]]:
+        -> MusicbrainzSearchResult:
     """Main search function
 
     :param artist_query: Artist name
@@ -366,43 +361,48 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     if cut_off is None:
         cut_off = 90
 
-    canonical = search_song_canonical(artist_query=artist_query, title_query=title_query)
+    canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query)
 
-    songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off, strict=True)
+    songs_found: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
+                                                           cut_off=cut_off, strict=True)
 
     if len(songs_found) == 0:
         _logger.info(f"Trying less restrictive search")
         songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
                                               strict=False)
-    recording_ids = [recording.id for recording in songs_found] # if recording.is_sane(artist_query, title_query)
+    recording_ids = [recording.id for recording in songs_found]  # if recording.is_sane(artist_query, title_query)
 
     if len(recording_ids) == 0:
         if canonical is not None:
-            _logger.info(f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical['recording']}.")
+            _logger.info(
+                f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical['recording']}.")
             recording_ids = [canonical['recording'].id]
         else:
-            _logger.info(f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
+            _logger.info(
+                f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
             artists = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
                 songs_found = search_song_musicbrainz(artist_query=artist, title_query=title_query, cut_off=cut_off)
-                recording_ids.extend([recording.id for recording in songs_found]) # if recording.is_sane(artist_query, title_query)
+                recording_ids.extend(
+                    [recording.id for recording in songs_found])  # if recording.is_sane(artist_query, title_query)
 
         if len(recording_ids) == 0:
             _logger.error(f"No  recordings found for '{artist_query}' - '{title_query}'")
             return {}
 
-    result = search_by_recording_id(recording_ids)
+    result: MusicbrainzSearchResult = search_by_recording_id(recording_ids)
 
     if canonical is not None:
-        result[SearchType.CANONICAL] = canonical
-    elif len(result) > 0:
+        result.add_result(SearchType.CANONICAL, canonical)
+    elif result.is_empty():
         _logger.info(f"Retrying failed canonical search using search result")
-        for k,v in result.items():
-            rec: Recording = v['recording']
-            canonical = search_song_canonical(artist_query=rec.artist_credit_phrase, title_query=rec.title)
+        k: SearchType
+        v: MusicbrainzSingleResult
+        for k, v in result.iterate_results():
+            canonical = search_song_canonical(artist_query=v.recording.artist_credit_phrase, title_query=v.recording.title)
             if canonical is not None:
                 _logger.debug(f"Found canonical result via search for {k.name}")
-                result[SearchType.CANONICAL] = canonical
+                result.add_result(SearchType.CANONICAL, canonical)
                 break
     return result
 
@@ -412,7 +412,7 @@ def search_name_by_type(
         title_query: str,
         search_type: SearchType,
         use_siblings: bool = True,
-        cut_off: int = None) -> dict[str, MusicBrainzObject]:
+        cut_off: int = None) -> MusicbrainzListResult:
     songs_found = search_song_musicbrainz(
         artist_query=artist_query,
         title_query=title_query,
@@ -427,22 +427,4 @@ def search_name_by_type(
         cut_off=cut_off
     )
 
-
-def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
-    potential_results = []
-    for track in release.tracks:
-        if track.recording == recording:
-            potential_results.append(track)
-    return min(potential_results)
-
-
-def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: Recording) -> tuple[Release, Track]:
-    potential_results = []
-    for r in rg.releases:
-        for track in r.tracks:
-            if track.recording == recording:
-               potential_results.append((r, track))
-    # do some sorting/selection
-    potential_results = sorted(potential_results)
-    return potential_results[0]
 

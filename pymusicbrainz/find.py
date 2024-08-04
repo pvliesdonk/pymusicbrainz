@@ -9,10 +9,10 @@ import rapidfuzz
 from .datatypes import RecordingID
 from .exceptions import MBApiError, NotFoundError
 from .constants import ACOUSTID_APIKEY
-from .dataclasses import ReleaseGroup, Recording, Release, Track, Artist
+from .dataclasses import ReleaseGroup, Recording, Release, Track, Artist, find_track_for_release_recording, \
+    find_track_release_for_release_group_recording
 from .object_cache import get_recording
-from .search import _search_typesense, find_track_for_release_recording, find_track_release_for_release_group_recording, \
-    search_artist_musicbrainz, search_song_musicbrainz, _logger
+from .search import _search_typesense, search_artist_musicbrainz, search_song_musicbrainz, _logger
 from .util import flatten_title, fold_sort_candidates
 
 _logger = logging.getLogger(__name__)
