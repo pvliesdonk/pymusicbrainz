@@ -1,8 +1,9 @@
 import datetime
 import logging
 import re
-from typing import Sequence
+from typing import Sequence, Optional
 
+import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
@@ -27,7 +28,7 @@ def split_artist(artist_query: str) -> list[str]:
 
 
 def fold_sort_candidates(
-        candidates: Sequence[tuple["ReleaseGroup", "Recording"]])\
+        candidates: Sequence[tuple["ReleaseGroup", "Recording"]]) \
         -> list[tuple["ReleaseGroup", list["Recording"]]]:
     t1 = {}
     for (rg, recording) in candidates:
@@ -53,3 +54,20 @@ def parse_partial_date(partial_date: mbdata.models.PartialDate) -> datetime.date
     if partial_date.day is None:
         return datetime.date(year=partial_date.year, month=partial_date.month, day=1)
     return datetime.date(year=partial_date.year, month=partial_date.month, day=partial_date.day)
+
+
+def area_to_country(area: mbdata.models.Area) -> Optional[str]:
+    from pymusicbrainz import get_db_session
+    with get_db_session() as session:
+        if area is None:
+            return None
+        if area.type_id != 1:
+            stmt = (
+                sa.select(mbdata.models.Area)
+                .join_from(mbdata.models.AreaContainment, mbdata.models.Area, mbdata.models.AreaContainment.parent)
+                .where(mbdata.models.AreaContainment.descendant_id == area.id)
+                .where(mbdata.models.Area.type_id == 1)
+            )
+            parent_area = session.scalar(stmt)
+            area = parent_area
+        return area.iso_3166_1_codes[0].code

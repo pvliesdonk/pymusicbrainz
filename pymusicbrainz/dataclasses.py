@@ -60,25 +60,13 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def country(self) -> str|None:
+        from pymusicbrainz.util import area_to_country
         with get_db_session() as session:
             artist: mbdata.models.Artist = session.get(mbdata.models.Artist, self._db_id)
             result = None
             area: mbdata.models.Area = artist.area
-            while result is None:
-                if area is None:
-                    return None
-                if area.type_id != 1:
-                    stmt = (
-                        sa.select(mbdata.models.Area)
-                        .join_from(mbdata.models.AreaContainment, mbdata.models.Area, mbdata.models.AreaContainment.parent)
-                            .where(mbdata.models.AreaContainment.descendant_id == area.id)
-                            .where(mbdata.models.Area.type_id == 1)
-                    )
-                    print(stmt)
-                    parent_area = session.scalar(stmt)
-                    area = parent_area
-                return area.iso_3166_1_codes[0].code
 
+            return area_to_country(area)
 
 
 #select *
@@ -510,6 +498,7 @@ class Release(MusicBrainzObject):
                  in_obj: ReleaseID | mbdata.models.Release | str) -> None:
         from .object_cache import get_artist
         from .util import parse_partial_date
+        from pymusicbrainz.util import area_to_country
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Release):
                 rel: mbdata.models.Release = session.merge(in_obj)
@@ -528,10 +517,11 @@ class Release(MusicBrainzObject):
             self.disambiguation: str = rel.comment
             self.first_release_date: datetime.date = parse_partial_date(
                 rel.first_release.date) if rel.first_release is not None else None
-            self.countries: list[str] = [c.country.area.iso_3166_1_codes[0].code for c in rel.country_dates]
+            self.countries: list[str] = [area_to_country(c.country.area) for c in rel.country_dates]
 
     @cached_property
     def aliases(self) -> list[str]:
+
         result = [self.title]
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.ReleaseAlias).where(
