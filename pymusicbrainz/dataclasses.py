@@ -14,7 +14,7 @@ from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_C
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList, SearchType
 from .db import get_db_session
-from .exceptions import MBApiError
+from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError
 
 _logger = logging.getLogger(__name__)
 
@@ -681,6 +681,8 @@ class Recording(MusicBrainzObject):
                     in_obj = RecordingID(in_obj)
                 stmt = sa.select(mbdata.models.Recording).where(mbdata.models.Recording.gid == str(in_obj))
                 rec: mbdata.models.Recording = session.scalar(stmt)
+                if rec is None:
+                    raise MBIDNotExistsError(f"Recording with id {in_obj} does not exist")
 
             self.id: RecordingID = RecordingID(str(rec.gid))
             self._db_id: int = rec.id
@@ -769,6 +771,7 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
+        _logger.info(f"Computing siblings of {self.__repr__()}")
         works = self.performance_of
         for work in works:
             if len(self.performance_type) == 0:
@@ -776,13 +779,13 @@ class Recording(MusicBrainzObject):
                     if r not in result and r.artists == self.artists:
                         result.append(r)
             elif len(self.performance_type) == 1:
-                _logger.info(
+                _logger.debug(
                     f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
                 for r in work.performances[self.performance_type[0]]:
                     if r not in result and r.artists == self.artists:
                         result.append(r)
             else:
-                _logger.info(
+                _logger.debug(
                     f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
                 options = work.performances[self.performance_type[0]]
                 for i in range(1, len(self.performance_type)):
@@ -1115,6 +1118,9 @@ class MusicbrainzSingleResult:
         if isinstance(other, MusicbrainzSingleResult):
             return self.track < other.track
 
+    def __eq__(self, other):
+        if isinstance(other, MusicbrainzSingleResult):
+            return self.release_group == other.release_group and self.recording == other.recording
 
 class MusicbrainzListResult(list[MusicbrainzSingleResult]):
 
@@ -1138,22 +1144,29 @@ class MusicbrainzSearchResult:
     def is_empty(self) -> bool:
         return len(self._dict) == 0
 
-    def get_canonical(self) -> Optional[MusicbrainzSingleResult]:
+    @property
+    def canonical(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.CANONICAL)
 
-    def get_studio_album(self) -> Optional[MusicbrainzSingleResult]:
+
+    @property
+    def studio_album(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.STUDIO_ALBUM)
 
-    def get_all(self) -> Optional[MusicbrainzSingleResult]:
+    @property
+    def all(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.ALL)
 
-    def get_single(self) -> Optional[MusicbrainzSingleResult]:
+    @property
+    def single(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.SINGLE)
 
-    def get_ep(self) -> Optional[MusicbrainzSingleResult]:
+    @property
+    def ep(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.EP)
 
-    def get_soundtrack(self) -> Optional[MusicbrainzSingleResult]:
+    @property
+    def soundtrack(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.SOUNDTRACK)
 
     def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
@@ -1161,6 +1174,46 @@ class MusicbrainzSearchResult:
             r = self.get_result(search_type)
             if r is not None:
                 yield search_type, r
+
+    def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
+
+        choice = None
+        if self.canonical is not None:
+            _logger.debug("Found canonical result")
+            choice = SearchType.CANONICAL
+
+        if self.studio_album is not None:
+            if self.studio_album != self.canonical:
+                _logger.debug("Switching to studio album result")
+                choice = SearchType.STUDIO_ALBUM
+            # else keep canonical
+            if self.soundtrack is not None:
+                if self.soundtrack < self.studio_album:
+                    _logger.debug("Found soundrack older than studio album")
+                    choice = SearchType.SOUNDTRACK
+        elif self.ep is not None:
+            if self.ep != self.canonical:
+                _logger.debug("Switching to EP result")
+                choice = SearchType.EP
+            if self.soundtrack is not None:
+                if self.soundtrack < self.ep:
+                    _logger.debug("Found soundrack older than ep")
+                    choice = SearchType.SOUNDTRACK
+
+        elif self.soundtrack is not None:
+            if self.soundtrack != self.canonical:
+                _logger.debug("Switching to soundtrack result")
+                choice = SearchType.SOUNDTRACK
+            if self.single is not None:
+                if self.single < self.soundtrack:
+                    _logger.debug("Switching to single older than soundtrack")
+                    choice = SearchType.SINGLE
+        else:
+            raise NotFoundError()
+
+        return self.get_result(choice)
+
+
 
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:

@@ -7,6 +7,7 @@ import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
+from .datatypes import RecordingID
 from .dataclasses import ReleaseGroup, Recording
 
 _logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
     with get_db_session() as session:
         if area is None:
             return None
-        if area.type_id != 1:
+        if area.type_id is not None and area.type_id != 1:
             stmt = (
                 sa.select(mbdata.models.Area)
                 .join_from(mbdata.models.AreaContainment, mbdata.models.Area, mbdata.models.AreaContainment.parent)
@@ -69,5 +70,26 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
                 .where(mbdata.models.Area.type_id == 1)
             )
             parent_area = session.scalar(stmt)
+            if parent_area is None:
+                return None
             area = parent_area
+
         return area.iso_3166_1_codes[0].code
+
+def recording_redirect(rec_id: str| RecordingID) -> RecordingID:
+    from pymusicbrainz import get_db_session
+
+    if isinstance(rec_id, str):
+        in_obj = RecordingID(rec_id)
+
+    with get_db_session() as session:
+        stmt = (
+            sa.select(mbdata.models.Recording.gid)
+            .join_from(mbdata.models.RecordingGIDRedirect, mbdata.models.Recording, mbdata.models.RecordingGIDRedirect.recording)
+            .where(mbdata.models.RecordingGIDRedirect.gid == str(rec_id))
+        )
+        res = session.scalar(stmt)
+        if res is None:
+            return rec_id
+        else:
+            return RecordingID(str(res))

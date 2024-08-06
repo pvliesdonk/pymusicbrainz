@@ -1,11 +1,15 @@
+import logging
+
 import mbdata.models
 
 from .dataclasses import Artist, ReleaseGroup, Release, Recording, Track, Work, Medium
 from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID
-from .exceptions import MBApiError
+from .exceptions import MBApiError, MBIDNotExistsError
 
 _object_cache = {}
 
+
+_logger = logging.getLogger(__name__)
 
 def clear_object_cache():
     global _object_cache

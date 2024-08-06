@@ -1,3 +1,4 @@
+import json
 import logging
 import pathlib
 from typing import Sequence, Optional
@@ -5,14 +6,14 @@ from typing import Sequence, Optional
 import acoustid
 import musicbrainzngs
 
-from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY
+from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
 from .exceptions import MBApiError
 from .typesense import do_typesense_lookup
 from .object_cache import get_recording, get_artist, get_release
-from .util import split_artist
+from .util import split_artist, recording_redirect
 
 _logger = logging.getLogger(__name__)
 
@@ -314,24 +315,64 @@ def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> l
     if cut_off is None:
         cut_off = 97
 
-    recording_ids = []
     try:
-        for score, recording_id, title, artist in acoustid.match(ACOUSTID_APIKEY, str(file)):
-            if score > cut_off / 100:
-                recording_ids.append(RecordingID(recording_id))
-        return recording_ids
+        duration, fp = acoustid.fingerprint_file(path=str(file))
     except acoustid.FingerprintGenerationError as ex:
         _logger.error(f"Could not compute fingerprint for file '{file}'")
         raise MBApiError(f"Could not compute fingerprint for file '{file}'") from ex
+
+    try:
+        response = acoustid.lookup(apikey=ACOUSTID_APIKEY, fingerprint=fp, duration=duration, meta=ACOUSTID_META)
     except acoustid.WebServiceError as ex:
         _logger.error("Could not obtain Acoustid fingerprint from webservice")
         raise MBApiError("Could not obtain Acoustid fingerprint from webservice") from ex
+
+    if response['status'] != 'ok':
+        raise MBApiError("Could not obtain Acoustid fingerprint from webservice")
+
+    recording_ids = []
+    for result in response['results']:
+        if result['score'] < cut_off / 100:
+            continue
+        _logger.debug(f"Processing acoustid https://acoustid.org/track/{result['id']}")
+        recordings = sorted(result["recordings"], key=lambda x: x['sources'], reverse=True)
+        previous_score = None
+        for rec in recordings:
+
+            redirected_id = recording_redirect(rec['id'])
+            recording = get_recording(redirected_id)
+
+            if previous_score is not None and (previous_score - rec['sources']) > 10:
+                # print(f"Acoustid: dropping {recording} ({rec['sources']} sources)")
+                continue
+            if redirected_id not in recording_ids:
+                print(f"Acoustid: adding {recording} ({rec['sources']} sources)")
+                recording_ids.append(redirected_id)
+            previous_score = rec['sources']
+    return recording_ids
+
+
+
 
 
 def search_fingerprint(file: pathlib.Path, cut_off: int = None) \
         -> MusicbrainzSearchResult:
     recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
-    return search_by_recording_id(recording_ids)
+
+    recordings = [get_recording(x) for x in recording_ids]
+
+    result =  search_by_recording_id(recording_ids)
+
+    _logger.info(f"Also trying canonical search using fingerprint search result")
+    k: SearchType
+    v: MusicbrainzSingleResult
+    for k, v in result.iterate_results():
+        canonical = search_song_canonical(artist_query=v.recording.artist_credit_phrase, title_query=v.recording.title)
+        if canonical is not None:
+            _logger.debug(f"Found canonical result via search for {k.name}")
+            result.add_result(SearchType.CANONICAL, canonical)
+            break
+    return result
 
 
 def search_fingerprint_by_type(
