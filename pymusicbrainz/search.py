@@ -1,4 +1,4 @@
-import json
+import logging
 import logging
 import pathlib
 from typing import Sequence, Optional
@@ -11,8 +11,8 @@ from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
 from .exceptions import MBApiError
-from .typesense import do_typesense_lookup
 from .object_cache import get_recording, get_artist, get_release
+from .typesense import do_typesense_lookup
 from .util import split_artist, recording_redirect
 
 _logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ def search_song_musicbrainz(
 
     :param artist_query: Artist name
     :param title_query: Recording name / Title
-    :param date: Date of release (optional)
-    :param cut_off: Tweak on when to cut of results from search (optional
+    :param strict: Do a strict AND search
+    :param cut_off: Tweak on when to cut of results from search (optional)
     :return:
     """
     _logger.debug(f"Searching for recording '{artist_query}' - '{title_query}' from MusicBrainz API")
@@ -145,7 +145,7 @@ def search_song_canonical(
     _logger.debug("Doing a lookup for canonical release")
     canonical_hits = _search_typesense(artist_query, title_query)
     if len(canonical_hits) > 0:
-        _logger.info(f"Found canonical release for '{artist_query}' - '{title_query}")
+        _logger.info(f"Found canonical release for '{artist_query}' - '{title_query}'")
         result: MusicbrainzListResult = MusicbrainzListResult()
         for hit in canonical_hits:
             r = MusicbrainzSingleResult(release_group=hit['release_group'], recording=hit['recording'])
@@ -391,7 +391,7 @@ def search_fingerprint_by_type(
 
 
 def search_song(artist_query: str, title_query: str, cut_off: int = None) \
-        -> MusicbrainzSearchResult:
+        -> Optional[MusicbrainzSearchResult]:
     """Main search function
 
     :param artist_query: Artist name
@@ -416,8 +416,8 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     if len(recording_ids) == 0:
         if canonical is not None:
             _logger.info(
-                f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical['recording']}.")
-            recording_ids = [canonical['recording'].id]
+                f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical[0].recording}.")
+            recording_ids = [canonical[0].recording.id]
         else:
             _logger.info(
                 f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
@@ -429,7 +429,7 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
 
         if len(recording_ids) == 0:
             _logger.error(f"No  recordings found for '{artist_query}' - '{title_query}'")
-            return {}
+            return None
 
     result: MusicbrainzSearchResult = search_by_recording_id(recording_ids)
 
