@@ -435,7 +435,7 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
 
     if canonical is not None:
         result.add_result(SearchType.CANONICAL, canonical)
-    elif result.is_empty():
+    elif not result.is_empty():
         _logger.info(f"Retrying failed canonical search using search result")
         k: SearchType
         v: MusicbrainzSingleResult
