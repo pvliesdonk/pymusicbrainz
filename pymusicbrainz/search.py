@@ -217,7 +217,7 @@ def _search_release_group_by_recording_ids(
 
     found_rgs.sort()
     if len(found_rgs) > 0:
-        _logger.info(f"Found {found_rgs[0][3]} for searchtype {search_type}")
+        _logger.info(f"Found {found_rgs[0].track} for searchtype {search_type}")
         return found_rgs
     else:
         _logger.debug(f"No release groups found for search type {search_type}")

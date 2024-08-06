@@ -15,7 +15,16 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
-#aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
+yyy = pymusicbrainz.get_artist("5441c29d-3602-4898-b1a1-b77fa23b8e50")
+yyy.country
+
+xx = pymusicbrainz.get_recording("3cee1d9e-49ce-448e-b261-6b595c84861e")
+
+xx.performance_of
+xx.performance_type
+xx2 = xx.siblings
+
+aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
 
 a = pymusicbrainz.get_artist("019cdf80-f8fe-4b2e-ad34-a84285427848")
 a.country
@@ -23,7 +32,7 @@ a.country
 c = pymusicbrainz.get_release("ffefaec6-3cec-4252-ab9d-12d96543d4cf")
 c.countries
 
-xx = pymusicbrainz.get_work("1d2ab3b6-22e3-347c-98a3-fca099ffc910")
+xxx = pymusicbrainz.get_work("1d2ab3b6-22e3-347c-98a3-fca099ffc910")
 
 Z = pymusicbrainz.search_song('Britney Spears', 'Born To Make You Happy')
 

@@ -67,10 +67,26 @@ class Artist(MusicBrainzObject):
             while result is None:
                 if area is None:
                     return None
-                if area.type_id == 1:
-                    return area.iso_3166_1_codes[0].code
-                _logger.error("UNKNOWN COUNTRY CODE")
+                if area.type_id != 1:
+                    stmt = (
+                        sa.select(mbdata.models.Area)
+                        .join_from(mbdata.models.AreaContainment, mbdata.models.Area, mbdata.models.AreaContainment.parent)
+                            .where(mbdata.models.AreaContainment.descendant_id == area.id)
+                            .where(mbdata.models.Area.type_id == 1)
+                    )
+                    print(stmt)
+                    parent_area = session.scalar(stmt)
+                    area = parent_area
+                return area.iso_3166_1_codes[0].code
 
+
+
+#select *
+# from musicbrainz.area_containment as c
+# left join musicbrainz.area as d on d.id = c.descendant
+# left join musicbrainz.area as p on p.id = c.parent
+# where c.descendant = 5155
+# and p.type = 1
 
     def url(self) -> str:
         return f"https://musicbrainz.org/artist/{self.id}"
@@ -704,26 +720,29 @@ class Recording(MusicBrainzObject):
         return self.performance_type
 
     @cached_property
-    def performance_of(self) -> Optional["Work"]:
+    def performance_of(self) -> list["Work"]:
         from .object_cache import get_work
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.LinkRecordingWork). \
                 where(mbdata.models.LinkRecordingWork.entity0_id == str(self._db_id))
-            res: mbdata.models.LinkRecordingWork = session.scalar(stmt)
-            if res is None:
+            res: mbdata.models.LinkRecordingWork = session.scalars(stmt).all()
+            if res is None or len(res) == 0:
                 self.performance_type = []
-                return None
-            w = get_work(res.work)
+                return []
+            else:
+                ws = [get_work(r.work) for r in res]
 
-            stmt = sa.select(mbdata.models.LinkAttribute). \
-                where(mbdata.models.LinkAttribute.link == res.link)
-            res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
             types = []
-            for att in res2:
-                types.append(att.attribute_type.name)
+            for r in res:
+                stmt = sa.select(mbdata.models.LinkAttribute). \
+                    where(mbdata.models.LinkAttribute.link == r.link)
+                res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
+
+                [types.append(att.attribute_type.name) for att in res2 if att.attribute_type.name not in types]
+
             self.performance_type = types
 
-        return w
+        return ws
 
     @cached_property
     def is_acapella(self) -> bool:
@@ -760,32 +779,29 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
-        work = self.performance_of
-        if work is None:
-            return []
-        if len(self.performance_type) == 0:
-            for r in work.performances['no-attr']:
-                if r not in result and r.artists == self.artists:
-                    result.append(r)
-            return result
-        elif len(self.performance_type) == 1:
-            _logger.info(
-                f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
-            for r in work.performances[self.performance_type[0]]:
-                if r not in result and r.artists == self.artists:
-                    result.append(r)
-            return result
-        else:
-            _logger.info(
-                f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
-            options = work.performances[self.performance_type[0]]
-            for i in range(1, len(self.performance_type)):
-                options = [rec for rec in options if rec in work.performances[self.performance_type[i]]]
+        works = self.performance_of
+        for work in works:
+            if len(self.performance_type) == 0:
+                for r in work.performances['no-attr']:
+                    if r not in result and r.artists == self.artists:
+                        result.append(r)
+            elif len(self.performance_type) == 1:
+                _logger.info(
+                    f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+                for r in work.performances[self.performance_type[0]]:
+                    if r not in result and r.artists == self.artists:
+                        result.append(r)
+            else:
+                _logger.info(
+                    f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+                options = work.performances[self.performance_type[0]]
+                for i in range(1, len(self.performance_type)):
+                    options = [rec for rec in options if rec in work.performances[self.performance_type[i]]]
 
-            for r in options:
-                if r not in result and r.artists == self.artists:
-                    result.append(r)
-            return result
+                for r in options:
+                    if r not in result and r.artists == self.artists:
+                        result.append(r)
+        return result
 
     # @cached_property
     # def streams(self) -> list[str]:
@@ -821,17 +837,17 @@ class Recording(MusicBrainzObject):
     #                 result.append(url.url)
     #
     #     return result
-
-    @cached_property
-    def spotify_id(self) -> str | None:
-        spotify_id_regex = r'open\.spotify\.com/\w+/([0-9A-Za-z]+)'
-        for url in self.streams:
-            match = re.search(spotify_id_regex, url)
-            if match:
-                id_ = match.group(1)
-                if id_:
-                    return id_
-        return None
+    #
+    # @cached_property
+    # def spotify_id(self) -> str | None:
+    #     spotify_id_regex = r'open\.spotify\.com/\w+/([0-9A-Za-z]+)'
+    #     for url in self.streams:
+    #         match = re.search(spotify_id_regex, url)
+    #         if match:
+    #             id_ = match.group(1)
+    #             if id_:
+    #                 return id_
+    #     return None
 
     def __repr__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
@@ -1027,6 +1043,7 @@ class Work(MusicBrainzObject):
         with get_db_session() as session:
 
             stmt = (
+
                 sa.select(mbdata.models.Recording, mbdata.models.LinkAttribute)
                 .select_from(
                     sa.join(
