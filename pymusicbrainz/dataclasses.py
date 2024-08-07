@@ -1213,7 +1213,8 @@ class MusicbrainzSearchResult:
 
         return self.get_result(choice)
 
-
+    def __repr__(self):
+        return "(Search result) best result:" + self.get_best_result().track.__repr__()
 
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
