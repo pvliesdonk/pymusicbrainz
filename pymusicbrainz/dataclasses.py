@@ -1212,7 +1212,7 @@ class MusicbrainzSearchResult:
                     _logger.debug("Switching to single older than soundtrack")
                     choice = SearchType.SINGLE
         
-        if choice is None
+        if choice is None:
             raise NotFoundError()
 
         return self.get_result(choice)
