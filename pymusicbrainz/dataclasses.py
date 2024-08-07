@@ -771,7 +771,7 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
-        _logger.info(f"Computing siblings of {self.__repr__()}")
+        _logger.debug(f"Computing siblings of {self.__repr__()}")
         works = self.performance_of
         for work in works:
             if len(self.performance_type) == 0:

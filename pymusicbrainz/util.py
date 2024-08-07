@@ -12,20 +12,53 @@ from .dataclasses import ReleaseGroup, Recording
 
 _logger = logging.getLogger(__name__)
 
+ARTIST_SPLITS = [  # \s? -> consume optional space, (?<!\w) before (?!\w) after
+    r'\s?(?<!\w)&(?!\w)\s?',  # &
+    r'\s?(?<!\w)\+(?!\w)\s?',  # +
+    r'\s?(?<!\w),(?!\w)\s?',  # +
+    r'\s?(?<!\w)ft\.?(?!\w)\s?',  # ft
+    r'\s?(?<!\w)vs\.?(?!\w)\s?',  # vs
+    r'\s?(?<!\w)featuring(?!\w)\s?',  # featuring
+    r'\s?(?<!\w)feat\.?(?!\w)\s?',  # feat
+    r'\s?(?<!\w)and(?!\w)\s?',  # and
+    r'\s?(?<!\w)en(?!\w)\s?',  # en
+    r'\s?(?<!\w)\(\s?'
+]
 
-def split_artist(artist_query: str) -> list[str]:
-    result = [artist_query]
+SUBSTRING_SPLIT = r'(.*)[\[\(](.*?)[\[\)](.*)'
+STRIP_CHARS = ' ().&'
 
-    splits = [" & ", " + ", " ft. ", " vs. ", " Ft. ", " feat. ", " and ", " en "]
 
-    for split in splits:
-        result = re.split(split, artist_query, flags=re.IGNORECASE)
-        if len(result) > 1:
-            for r in result:
-                if r not in result:
-                    result.append(r)
+def split_artist(s: str, include_first=True) -> list[str]:
+    m = re.match(SUBSTRING_SPLIT, s)
+    if m:
+        split_results = [s] if include_first else []
+        for t1 in m.groups():
+            for t2 in split_artist(t1, include_first=False):
+                if t2 and t2 not in split_results:
+                    split_results.append(t2.strip(STRIP_CHARS))
 
-    return result
+        return split_results
+
+    split_results = []
+    for split_regex in ARTIST_SPLITS:
+        split_result = re.split(split_regex, s, flags=re.IGNORECASE)
+        if len(split_result) > 1:
+            for r in split_result:
+                if r not in split_results:
+                    split_results.append(r.strip(STRIP_CHARS))
+
+    if not split_results:
+        return [s.strip(STRIP_CHARS)]
+    else:
+        recurse_result = [s] if include_first else []
+        for r in split_results:
+            t1 = split_artist(r)
+            for t2 in t1:
+                if t2 and t2 not in recurse_result:
+                    recurse_result.append(t2)
+
+        return recurse_result
 
 
 def fold_sort_candidates(
@@ -76,7 +109,8 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
 
         return area.iso_3166_1_codes[0].code
 
-def recording_redirect(rec_id: str| RecordingID) -> RecordingID:
+
+def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
     from pymusicbrainz import get_db_session
 
     if isinstance(rec_id, str):
@@ -85,7 +119,8 @@ def recording_redirect(rec_id: str| RecordingID) -> RecordingID:
     with get_db_session() as session:
         stmt = (
             sa.select(mbdata.models.Recording.gid)
-            .join_from(mbdata.models.RecordingGIDRedirect, mbdata.models.Recording, mbdata.models.RecordingGIDRedirect.recording)
+            .join_from(mbdata.models.RecordingGIDRedirect, mbdata.models.Recording,
+                       mbdata.models.RecordingGIDRedirect.recording)
             .where(mbdata.models.RecordingGIDRedirect.gid == str(rec_id))
         )
         res = session.scalar(stmt)

@@ -16,6 +16,8 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+dsaafs = pymusicbrainz.search_song('3T (featuring Herbie)', 'Gotta Be You')
+
 yyy = pymusicbrainz.get_artist("5441c29d-3602-4898-b1a1-b77fa23b8e50")
 yyy.country
 
@@ -24,8 +26,10 @@ yyy.country
 # xx.performance_of
 # xx.performance_type
 # xx2 = xx.siblings
-dsakj = pymusicbrainz.search_fingerprint(pathlib.Path('tests')/'test_file.flac')
-dsakj_result = dsakj.get_best_result()
+path = pathlib.Path('tests')/'test_file.flac'
+if path.exists():
+    dsakj = pymusicbrainz.search_fingerprint(path)
+    dsakj_result = dsakj.get_best_result()
 
 aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
 aa.get_best_result()
