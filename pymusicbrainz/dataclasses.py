@@ -1177,6 +1177,9 @@ class MusicbrainzSearchResult:
 
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
+        if self.is_empty()
+            raise NotFoundError()
+
         choice = None
         if self.canonical is not None:
             _logger.debug("Found canonical result")
@@ -1208,7 +1211,8 @@ class MusicbrainzSearchResult:
                 if self.single < self.soundtrack:
                     _logger.debug("Switching to single older than soundtrack")
                     choice = SearchType.SINGLE
-        else:
+        
+        if choice is None
             raise NotFoundError()
 
         return self.get_result(choice)
