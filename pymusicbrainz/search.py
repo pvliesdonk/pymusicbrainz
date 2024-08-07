@@ -421,9 +421,9 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
         else:
             _logger.info(
                 f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
-            artists = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
+            artists: list[Artist] = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
-                songs_found = search_song_musicbrainz(artist_query=artist, title_query=title_query, cut_off=cut_off)
+                songs_found = search_song_musicbrainz(artist_query=artist.name, title_query=title_query, cut_off=cut_off)
                 recording_ids.extend(
                     [recording.id for recording in songs_found])  # if recording.is_sane(artist_query, title_query)
 

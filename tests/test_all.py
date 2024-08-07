@@ -16,6 +16,8 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+
+gsfhgdsfg = pymusicbrainz.search_song("4 Tops","Reach Out I'll Be There")
 dsaafs = pymusicbrainz.search_song('3T (featuring Herbie)', 'Gotta Be You')
 
 yyy = pymusicbrainz.get_artist("5441c29d-3602-4898-b1a1-b77fa23b8e50")
