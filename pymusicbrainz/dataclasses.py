@@ -1177,7 +1177,7 @@ class MusicbrainzSearchResult:
 
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
-        if self.is_empty()
+        if self.is_empty():
             raise NotFoundError()
 
         choice = None
