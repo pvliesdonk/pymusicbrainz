@@ -1177,15 +1177,15 @@ class MusicbrainzSearchResult:
 
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
-        if self.is_empty():
-            raise NotFoundError()
+        if self.is_empty():								# something exists
+            raise NotFoundError("Result is empty")
 
-        choice = None
-        if self.canonical is not None:
+        choice = None						
+        if self.canonical is not None:							
             _logger.debug("Found canonical result")
             choice = SearchType.CANONICAL
 
-        if self.studio_album is not None:
+        if self.studio_album is not None:						# there may be no canonical
             if self.studio_album != self.canonical:
                 _logger.debug("Switching to studio album result")
                 choice = SearchType.STUDIO_ALBUM
@@ -1194,7 +1194,7 @@ class MusicbrainzSearchResult:
                 if self.soundtrack < self.studio_album:
                     _logger.debug("Found soundrack older than studio album")
                     choice = SearchType.SOUNDTRACK
-        elif self.ep is not None:
+        elif self.ep is not None:							# there is no album
             if self.ep != self.canonical:
                 _logger.debug("Switching to EP result")
                 choice = SearchType.EP
@@ -1203,7 +1203,7 @@ class MusicbrainzSearchResult:
                     _logger.debug("Found soundrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
-        elif self.soundtrack is not None:
+        elif self.soundtrack is not None:						# there is no ep
             if self.soundtrack != self.canonical:
                 _logger.debug("Switching to soundtrack result")
                 choice = SearchType.SOUNDTRACK
@@ -1212,8 +1212,12 @@ class MusicbrainzSearchResult:
                     _logger.debug("Switching to single older than soundtrack")
                     choice = SearchType.SINGLE
         
+        elif self.single is not None:
+            choice = SearchType.SINGLE
+        
+        # should never get here
         if choice is None:
-            raise NotFoundError()
+            raise NotFoundError("Was not able to determine a best result for non-empy result set")
 
         return self.get_result(choice)
 
