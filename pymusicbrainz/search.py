@@ -92,11 +92,14 @@ def _search_typesense(artist_name, recording_name):
 
     output = []
     for hit in hits:
-        hit['artists'] = [artist_redirect(get_artist(x)) for x in hit['artist_ids']]
-        hit['release'] = release_redirect(get_release(hit['release_id']))
-        hit['recording'] = recording_redirect(get_recording(hit['recording_id']))
-        hit['release_group'] = hit['release'].release_group
-        output.append(hit)
+        try:
+            hit['artists'] = [artist_redirect(get_artist(x)) for x in hit['artist_ids']]
+            hit['release'] = release_redirect(get_release(hit['release_id']))
+            hit['recording'] = recording_redirect(get_recording(hit['recording_id']))
+            hit['release_group'] = hit['release'].release_group
+            output.append(hit)
+        except MBApiError as ex:
+            _logger.error(f"Could not process hit from typesense response")
     return output
 
 
