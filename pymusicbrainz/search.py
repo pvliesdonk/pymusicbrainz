@@ -13,7 +13,7 @@ from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
 from .exceptions import MBApiError
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup
-from .util import split_artist, recording_redirect
+from .util import split_artist, recording_redirect, artist_redirect, release_redirect
 
 _logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def search_song_musicbrainz(
         result = []
         for rid, score in result_ids:
             try:
-                recording = get_recording(rid)
+                recording = get_recording(recording_redirect(rid))
                 if recording.is_sane(artist_query, title_query):
                     result.append((recording, score))
             except MBApiError as ex:
@@ -92,9 +92,9 @@ def _search_typesense(artist_name, recording_name):
 
     output = []
     for hit in hits:
-        hit['artists'] = [get_artist(x) for x in hit['artist_ids']]
-        hit['release'] = get_release(hit['release_id'])
-        hit['recording'] = get_recording(hit['recording_id'])
+        hit['artists'] = [artist_redirect(get_artist(x)) for x in hit['artist_ids']]
+        hit['release'] = release_redirect(get_release(hit['release_id']))
+        hit['recording'] = recording_redirect(get_recording(hit['recording_id']))
         hit['release_group'] = hit['release'].release_group
         output.append(hit)
     return output
@@ -121,10 +121,10 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
             for r in response["artist-list"]:
                 score = int(r["ext:score"])
                 if score > cut_off:
-                    artist_id = ArtistID(r["id"])
+                    artist_id: ArtistID = ArtistID(r["id"])
                     if artist_id not in result and artist_id not in [VA_ARTIST_ID, UNKNOWN_ARTIST_ID]:
                         result.append(artist_id)
-        result = [get_artist(x) for x in result]
+        result = [artist_redirect(get_artist(x)) for x in result]
         result = [x for x in result if x.is_sane(artist_query, cut_off)]
         _logger.debug(f"Search gave us {len(result)} results above cutoff threshold")
         return result

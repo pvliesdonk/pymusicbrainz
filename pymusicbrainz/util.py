@@ -7,7 +7,7 @@ import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
-from .datatypes import RecordingID
+from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID
 from .dataclasses import ReleaseGroup, Recording
 
 _logger = logging.getLogger(__name__)
@@ -109,6 +109,63 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
 
         return area.iso_3166_1_codes[0].code
 
+
+def artist_redirect(rec_id: str | ArtistID) -> ArtistID:
+    from pymusicbrainz import get_db_session
+
+    if isinstance(rec_id, str):
+        in_obj = ArtistID(rec_id)
+
+    with get_db_session() as session:
+        stmt = (
+            sa.select(mbdata.models.Artist.gid)
+            .join_from(mbdata.models.ArtistGIDRedirect, mbdata.models.Artist,
+                       mbdata.models.ArtistGIDRedirect.artist)
+            .where(mbdata.models.ArtistGIDRedirect.gid == str(rec_id))
+        )
+        res = session.scalar(stmt)
+        if res is None:
+            return rec_id
+        else:
+            return ArtistID(str(res))
+
+def release_group_redirect(rec_id: str | ReleaseGroupID) -> ReleaseGroupID:
+    from pymusicbrainz import get_db_session
+
+    if isinstance(rec_id, str):
+        in_obj = ReleaseGroupID(rec_id)
+
+    with get_db_session() as session:
+        stmt = (
+            sa.select(mbdata.models.ReleaseGroup.gid)
+            .join_from(mbdata.models.ReleaseGroupGIDRedirect, mbdata.models.ReleaseGroup,
+                       mbdata.models.ReleaseGroupGIDRedirect.release_group)
+            .where(mbdata.models.ReleaseGroupGIDRedirect.gid == str(rec_id))
+        )
+        res = session.scalar(stmt)
+        if res is None:
+            return rec_id
+        else:
+            return ReleaseGroupID(str(res))
+        
+def release_redirect(rec_id: str | ReleaseID) -> ReleaseID:
+    from pymusicbrainz import get_db_session
+
+    if isinstance(rec_id, str):
+        in_obj = ReleaseID(rec_id)
+
+    with get_db_session() as session:
+        stmt = (
+            sa.select(mbdata.models.Release.gid)
+            .join_from(mbdata.models.ReleaseGIDRedirect, mbdata.models.Release,
+                       mbdata.models.ReleaseGIDRedirect.release)
+            .where(mbdata.models.ReleaseGIDRedirect.gid == str(rec_id))
+        )
+        res = session.scalar(stmt)
+        if res is None:
+            return rec_id
+        else:
+            return ReleaseID(str(res))
 
 def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
     from pymusicbrainz import get_db_session
