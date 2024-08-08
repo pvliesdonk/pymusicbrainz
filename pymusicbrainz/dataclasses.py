@@ -890,9 +890,9 @@ class Recording(MusicBrainzObject):
         )[1]
 
         if not artist_sane:
-            _logger.error(f"{self} is not a sane candidate for artist {artist_query}")
+            _logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
         elif title_ratio < cut_off:
-            _logger.error(f"{self} is not a sane candidate for title {title_query}")
+            _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         else:
             return True
 
