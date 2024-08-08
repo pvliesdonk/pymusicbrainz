@@ -93,9 +93,9 @@ def _search_typesense(artist_name, recording_name):
     output = []
     for hit in hits:
         try:
-            hit['artists'] = [artist_redirect(get_artist(x)) for x in hit['artist_ids']]
-            hit['release'] = release_redirect(get_release(hit['release_id']))
-            hit['recording'] = recording_redirect(get_recording(hit['recording_id']))
+            hit['artists'] = [get_artist(artist_redirect(x)) for x in hit['artist_ids']]
+            hit['release'] = get_release(release_redirect(hit['release_id']))
+            hit['recording'] = get_recording(recording_redirect(hit['recording_id']))
             hit['release_group'] = hit['release'].release_group
             output.append(hit)
         except MBApiError as ex:
@@ -127,7 +127,7 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
                     artist_id: ArtistID = ArtistID(r["id"])
                     if artist_id not in result and artist_id not in [VA_ARTIST_ID, UNKNOWN_ARTIST_ID]:
                         result.append(artist_id)
-        result = [artist_redirect(get_artist(x)) for x in result]
+        result = [get_artist(artist_redirect(x)) for x in result]
         result = [x for x in result if x.is_sane(artist_query, cut_off)]
         _logger.debug(f"Search gave us {len(result)} results above cutoff threshold")
         return result
