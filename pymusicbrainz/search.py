@@ -436,7 +436,7 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
                     [recording.id for recording in songs_found])  # if recording.is_sane(artist_query, title_query)
 
         if len(recording_ids) == 0:
-            _logger.error(f"No  recordings found for '{artist_query}' - '{title_query}'")
+            _logger.warning(f"No  recordings found for '{artist_query}' - '{title_query}'")
             return None
 
     result: MusicbrainzSearchResult = search_by_recording_id(recording_ids)
@@ -457,7 +457,7 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
                 break
 
     if result.is_empty():
-        _logger.error(f"Could not find a match for '{artist_query}' - '{title_query}' after every search I tried")
+        _logger.warning(f"Could not find a match for '{artist_query}' - '{title_query}' after every search I tried")
         return None
     return result
 
