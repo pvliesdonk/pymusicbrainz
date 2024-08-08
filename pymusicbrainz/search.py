@@ -411,18 +411,18 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
                                                            cut_off=cut_off, strict=True)
 
     if len(songs_found) == 0:
-        _logger.info(f"Trying less restrictive search")
+        _logger.warning(f"Trying less restrictive search")
         songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
                                               strict=False)
     recording_ids = [recording.id for recording in songs_found]  # if recording.is_sane(artist_query, title_query)
 
     if len(recording_ids) == 0:
         if canonical is not None:
-            _logger.info(
+            _logger.warning(
                 f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical[0].recording}.")
             recording_ids = [canonical[0].recording.id]
         else:
-            _logger.info(
+            _logger.warning(
                 f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
             artists: list[Artist] = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
@@ -436,6 +436,8 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
 
     result: MusicbrainzSearchResult = search_by_recording_id(recording_ids)
 
+
+
     if canonical is not None:
         result.add_result(SearchType.CANONICAL, canonical)
     elif not result.is_empty():
@@ -448,6 +450,10 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
                 _logger.debug(f"Found canonical result via search for {k.name}")
                 result.add_result(SearchType.CANONICAL, canonical)
                 break
+
+    if result.is_empty():
+        _logger.error(f"Could not find a match for '{artist_query}' - '{title_query}' after every search I tried")
+        return None
     return result
 
 
