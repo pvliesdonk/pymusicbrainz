@@ -404,14 +404,19 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     """
     if cut_off is None:
         cut_off = 90
-
+    _logger.info(f"Searching for '{artist_query}' - '{title_query}'")
     canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query)
+
+    if canonical:
+        _logger.info(f"Found canonical release")
+    else:
+        _logger.info(f"No canonical release found")
 
     songs_found: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
                                                            cut_off=cut_off, strict=True)
 
     if len(songs_found) == 0:
-        _logger.warning(f"Trying less restrictive search")
+        _logger.warning(f"Nor recording ids found in search. Trying less restrictive search")
         songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
                                               strict=False)
     recording_ids = [recording.id for recording in songs_found]  # if recording.is_sane(artist_query, title_query)
@@ -419,7 +424,7 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     if len(recording_ids) == 0:
         if canonical is not None:
             _logger.warning(
-                f"Searching for '{artist_query}' - '{title_query}' gave no results. Triggering search from canonical result {canonical[0].recording}.")
+                f"No potential recording ids for '{artist_query}' - '{title_query}'. Triggering a search from canonical result {canonical[0].recording}.")
             recording_ids = [canonical[0].recording.id]
         else:
             _logger.warning(
