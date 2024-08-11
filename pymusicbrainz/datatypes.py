@@ -95,3 +95,14 @@ class SearchType(enum.StrEnum):
     SOUNDTRACK = "soundtrack"
     EP = "ep"
     ALL = "all"
+
+class PerformanceWorkAttributes(enum.StrEnum):
+    ACAPELLA = "acapella"
+    COVER = "cover"
+    INSTRUMENTAL = "instrumental"
+    KARAOKE = "karaoke"
+    LIVE = "live"
+    MEDLEY = "medley"
+    PARTIAL = "partial"
+    NONE = "no-attr"
+    ALL = "all"

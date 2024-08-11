@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
-    WorkID, SecondaryTypeList, SearchType
+    WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError
 
@@ -707,7 +707,7 @@ class Recording(MusicBrainzObject):
         return result
 
     @cached_property
-    def performance_type(self) -> list[str]:
+    def performance_type(self) -> list[PerformanceWorkAttributes]:
         p = self.performance_of
         return self.performance_type
 
@@ -717,7 +717,7 @@ class Recording(MusicBrainzObject):
         with get_db_session() as session:
             stmt = sa.select(mbdata.models.LinkRecordingWork). \
                 where(mbdata.models.LinkRecordingWork.entity0_id == str(self._db_id))
-            res: mbdata.models.LinkRecordingWork = session.scalars(stmt).all()
+            res: list[mbdata.models.LinkRecordingWork] = session.scalars(stmt).all()
             if res is None or len(res) == 0:
                 self.performance_type = []
                 return []
@@ -730,7 +730,7 @@ class Recording(MusicBrainzObject):
                     where(mbdata.models.LinkAttribute.link == r.link)
                 res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
 
-                [types.append(att.attribute_type.name) for att in res2 if att.attribute_type.name not in types]
+                [types.append(PerformanceWorkAttributes(att.attribute_type.name)) for att in res2 if PerformanceWorkAttributes(att.attribute_type.name) not in types]
 
             self.performance_type = types
 
@@ -738,31 +738,31 @@ class Recording(MusicBrainzObject):
 
     @cached_property
     def is_acapella(self) -> bool:
-        return "acapella" in self.performance_type
+        return PerformanceWorkAttributes.ACAPELLA in self.performance_type
 
     @cached_property
     def is_live(self) -> bool:
-        return "live" in self.performance_type
+        return PerformanceWorkAttributes.LIVE in self.performance_type
 
     @cached_property
     def is_medley(self) -> bool:
-        return "medley" in self.performance_type
+        return PerformanceWorkAttributes.MEDLEY in self.performance_type
 
     @cached_property
     def is_partial(self) -> bool:
-        return "partial" in self.performance_type
+        return PerformanceWorkAttributes.PARTIAL in self.performance_type
 
     @cached_property
     def is_instrumental(self) -> bool:
-        return "ïnstrumental" in self.performance_type
+        return PerformanceWorkAttributes.INSTRUMENTAL in self.performance_type
 
     @cached_property
     def is_cover(self) -> bool:
-        return "cover" in self.performance_type
+        return PerformanceWorkAttributes.COVER in self.performance_type
 
     @cached_property
     def is_karaoke(self) -> bool:
-        return "karaoke" in self.performance_type
+        return PerformanceWorkAttributes.KARAOKE in self.performance_type
 
     @cached_property
     def is_normal_performance(self) -> bool:
@@ -775,25 +775,14 @@ class Recording(MusicBrainzObject):
         works = self.performance_of
         for work in works:
             if len(self.performance_type) == 0:
-                for r in work.performances['no-attr']:
-                    if r not in result and r.artists == self.artists:
-                        result.append(r)
-            elif len(self.performance_type) == 1:
-                _logger.debug(
-                    f"Recording of type {self.performance_type[0]}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
-                for r in work.performances[self.performance_type[0]]:
+                for r in work.performance_by_type([PerformanceWorkAttributes.NONE]):
                     if r not in result and r.artists == self.artists:
                         result.append(r)
             else:
                 _logger.debug(
                     f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
-                options = work.performances[self.performance_type[0]]
-                for i in range(1, len(self.performance_type)):
-                    options = [rec for rec in options if rec in work.performances[self.performance_type[i]]]
 
-                for r in options:
-                    if r not in result and r.artists == self.artists:
-                        result.append(r)
+                result = work.performance_by_type(self.performance_type)
         return result
 
     # @cached_property
@@ -1030,8 +1019,8 @@ class Work(MusicBrainzObject):
             self.type: str = w.type.name if w.type is not None else None
 
     @cached_property
-    def performances(self) -> dict[str, list[Recording]]:
-        results = {'all': [], 'no-attr': []}
+    def performances(self) -> dict[PerformanceWorkAttributes, list[Recording]]:
+        results = {PerformanceWorkAttributes.ALL: [], PerformanceWorkAttributes.NONE: []}
         from .object_cache import get_recording
         with get_db_session() as session:
 
@@ -1052,17 +1041,31 @@ class Work(MusicBrainzObject):
 
             for (r, la) in res:
                 rec: Recording = get_recording(r)
-                if rec not in results['all']:
-                    results['all'].append(rec)
+                if rec not in results[PerformanceWorkAttributes.ALL]:
+                    results[PerformanceWorkAttributes.ALL].append(rec)
 
                 if la is None:
-                    results['no-attr'].append(rec)
+                    results[PerformanceWorkAttributes.NONE].append(rec)
                 else:
-                    if la.attribute_type.name in results.keys():
-                        results[la.attribute_type.name].append(rec)
+                    att = PerformanceWorkAttributes(la.attribute_type.name)
+                    if att in results.keys():
+                        results[att].append(rec)
                     else:
-                        results[la.attribute_type.name] = [rec]
+                        results[att] = [rec]
 
+        return results
+
+    def performance_by_type(self, types: list[PerformanceWorkAttributes]) -> list[Recording]:
+        results = None
+        for t in types:
+            if t in self.performances.keys():
+                if results is None:
+                    results = self.performances[t]
+                else:
+                    results = [r for r in results if r in self.performances[t]]
+                    results = list(set(results))
+        if results is None:
+            return []
         return results
 
     def __repr__(self):
