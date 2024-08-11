@@ -1178,6 +1178,7 @@ class MusicbrainzSearchResult:
             if r is not None:
                 yield search_type, r
 
+    @cache
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
         if self.is_empty():								# something exists
