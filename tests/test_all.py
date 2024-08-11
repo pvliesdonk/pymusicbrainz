@@ -7,7 +7,7 @@ DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/
 
 logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
 logging.getLogger().setLevel(logging.DEBUG)
-logging.getLogger('musicbrainzngs').setLevel(logging.ERROR)
+logging.getLogger('musicbrainzngs').setLevel(logging.DEBUG)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 logging.info(f"Configuring database at {DB_URI}")

@@ -1216,6 +1216,7 @@ class MusicbrainzSearchResult:
                     choice = SearchType.SINGLE
         
         elif self.single is not None:
+            _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
         
         # should never get here
