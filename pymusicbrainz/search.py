@@ -22,6 +22,7 @@ def search_song_musicbrainz(
         artist_query: str | Artist,
         title_query: str,
         strict: bool = True,
+        normalized: bool = True,
         cut_off: int = 90) -> list["Recording"]:
     """Search for a recording in the Musicbrainz API
 
@@ -78,10 +79,11 @@ def search_song_musicbrainz(
         result = sorted(result, key=lambda x: x[1], reverse=True)
         result = [x[0] for x in result]
 
-        normalized_result = [x for x in result if x.is_normal_performance]
-        if len(normalized_result) > 0:
-            _logger.debug(f"Shortened to {len(normalized_result)} results that are normal performances")
-            result = normalized_result
+        if normalized: # gives the option to skip a normalized search
+            normalized_result = [x for x in result if x.is_normal_performance]
+            if len(normalized_result) > 0:
+                _logger.debug(f"Shortened to {len(normalized_result)} results that are normal performances")
+                result = normalized_result
         return result
     except musicbrainzngs.WebServiceError as ex:
         raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
@@ -412,12 +414,12 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     else:
         _logger.info(f"No canonical release found")
 
-    songs_found: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
+    songs_found: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, normalized=True,
                                                            cut_off=cut_off, strict=True)
 
     if len(songs_found) == 0:
         _logger.warning(f"Nor recording ids found in search. Trying less restrictive search")
-        songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
+        songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off, normalized=True,
                                               strict=False)
     recording_ids = [recording.id for recording in songs_found]  # if recording.is_sane(artist_query, title_query)
 

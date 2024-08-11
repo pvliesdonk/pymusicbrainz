@@ -17,6 +17,8 @@ pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
 
+fkdjhaksdfj = pymusicbrainz.search_song("The Bangles", "A Hazy Shade of Winter")
+
 gsfhgdsfg = pymusicbrainz.search_song("4 Tops","Reach Out I'll Be There")
 dsaafs = pymusicbrainz.search_song('3T (featuring Herbie)', 'Gotta Be You')
 
