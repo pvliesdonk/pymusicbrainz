@@ -782,7 +782,7 @@ class Recording(MusicBrainzObject):
                 _logger.debug(
                     f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
 
-                result = work.performance_by_type(self.performance_type)
+                result = [rec for rec in work.performance_by_type(self.performance_type) if rec.artists == self.artists]
         return result
 
     # @cached_property

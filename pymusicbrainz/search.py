@@ -22,7 +22,7 @@ def search_song_musicbrainz(
         artist_query: str | Artist,
         title_query: str,
         strict: bool = True,
-        normalized: bool = True,
+        limit: int = 20,
         cut_off: int = 90) -> list["Recording"]:
     """Search for a recording in the Musicbrainz API
 
@@ -33,6 +33,7 @@ def search_song_musicbrainz(
     :return:
     """
     _logger.debug(f"Searching for recording '{artist_query}' - '{title_query}' from MusicBrainz API")
+
 
     result_ids = []
 
@@ -73,18 +74,16 @@ def search_song_musicbrainz(
                 recording = get_recording(recording_redirect(rid))
                 if recording.is_sane(artist_query, title_query):
                     result.append((recording, score))
+                if len(result) > limit:
+                    _logger.warning(f"Reach maximum of {limit} result")
+                    break
             except MBApiError as ex:
                 _logger.warning(f"Could not get recording {str(rid)}")
 
         result = sorted(result, key=lambda x: x[1], reverse=True)
         result = [x[0] for x in result]
-
-        if normalized: # gives the option to skip a normalized search
-            normalized_result = [x for x in result if x.is_normal_performance]
-            if len(normalized_result) > 0:
-                _logger.debug(f"Shortened to {len(normalized_result)} results that are normal performances")
-                result = normalized_result
         return result
+
     except musicbrainzngs.WebServiceError as ex:
         raise MBApiError("Could not get result from musicbrainz_wrapper API") from ex
 
@@ -295,6 +294,20 @@ def search_release_groups_by_recording_ids(
     )
 
 
+def search_by_recording(
+        recordings: Recording | Sequence[Recording],
+        use_siblings: bool = True,
+        cut_off: int = None) ->  MusicbrainzSearchResult:
+    if isinstance(recordings, Recording):
+        recordings = [recordings]
+
+    recording_ids = [recording.id for recording in recordings]
+    return search_by_recording_id(
+        recording_ids=recording_ids,
+        use_siblings=use_siblings,
+        cut_off=cut_off)
+
+
 def search_by_recording_id(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
@@ -395,7 +408,7 @@ def search_fingerprint_by_type(
     )
 
 
-def search_song(artist_query: str, title_query: str, cut_off: int = None) \
+def search_song(artist_query: str, title_query: str, file: pathlib.Path = None,  cut_off: int = None) \
         -> Optional[MusicbrainzSearchResult]:
     """Main search function
 
@@ -407,46 +420,84 @@ def search_song(artist_query: str, title_query: str, cut_off: int = None) \
     if cut_off is None:
         cut_off = 90
     _logger.info(f"Searching for '{artist_query}' - '{title_query}'")
+
+    # First find a canonical result:
+    _logger.info(f"Step 1. performing canonical search on '{artist_query}' - '{title_query}'")
     canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query)
 
     if canonical:
         _logger.info(f"Found canonical release")
-    else:
-        _logger.info(f"No canonical release found")
 
-    songs_found: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, normalized=True,
+    # Doing fingerprint look up
+    if file:
+        _logger.info(f"Step 2. performing acoustid fingerprint lookup")
+        songs_found_fp: list[Recording] = [get_recording(x) for x in _recording_id_from_fingerprint(file)]
+        _logger.debug(f"Found {len(songs_found_fp)} results from fingerprint lookup search")
+    else:
+        _logger.info(f"Step 2. skipping acoustid fingerprint lookup")
+        songs_found_fp: list[Recording] = []
+
+    # gathering potential recordings to start search from
+
+    _logger.info(f"Step 3. performing a search query on Musicbrainz API")
+    songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
                                                            cut_off=cut_off, strict=True)
 
-    if len(songs_found) == 0:
-        _logger.warning(f"Nor recording ids found in search. Trying less restrictive search")
-        songs_found = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off, normalized=True,
+    if len(songs_found_mb) == 0:
+        _logger.info(f"Step 3b. performing a less restrictive search query on Musicbrainz API")
+        songs_found_mb = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
                                               strict=False)
-    recording_ids = [recording.id for recording in songs_found]  # if recording.is_sane(artist_query, title_query)
 
-    if len(recording_ids) == 0:
+    if len(songs_found_mb) == 0:
         if canonical is not None:
-            _logger.warning(
-                f"No potential recording ids for '{artist_query}' - '{title_query}'. Triggering a search from canonical result {canonical[0].recording}.")
-            recording_ids = [canonical[0].recording.id]
+            _logger.info(
+                f"Step 3c. Bootstrapping search from canonical result {canonical[0].recording}.")
+            songs_found_mb = [canonical[0].recording]
         else:
-            _logger.warning(
-                f"No recordings found for '{artist_query}' - '{title_query}'. Trying artist search to determine a different artist")
+            _logger.info(
+                f"Step 3d. Artist search to determine a different artist")
             artists: list[Artist] = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
-                songs_found = search_song_musicbrainz(artist_query=artist.name, title_query=title_query, cut_off=cut_off)
-                recording_ids.extend(
-                    [recording.id for recording in songs_found])  # if recording.is_sane(artist_query, title_query)
+                songs_found_mb = search_song_musicbrainz(artist_query=artist.name, title_query=title_query, cut_off=cut_off)
 
-        if len(recording_ids) == 0:
-            _logger.warning(f"No  recordings found for '{artist_query}' - '{title_query}'")
-            return None
+    _logger.debug(f"Found {len(songs_found_mb)} from musicbrainz search")
 
-    result: MusicbrainzSearchResult = search_by_recording_id(recording_ids)
+    if not canonical and not songs_found_fp and not songs_found_mb:
+        _logger.error(f"Could not determine potential recordings for '{artist_query}' - '{title_query}'")
+        return None
 
+    _logger.info(f"Step 4. analyzing results so far")
 
+    #check crossovers
+    fp_vs_mb: list[Recording] = [r for r in songs_found_fp if r in songs_found_mb]
+    candidates: list[Recording]
+    if fp_vs_mb:
+        _logger.debug(f"Using results that appear both in fingerprinting as wel as search query")
+        candidates = fp_vs_mb
+    elif songs_found_fp:
+        _logger.debug(f"Using fingerprinting results")
+        candidates = songs_found_fp
+    else:
+        _logger.debug(f"Using results from search query")
+        candidates = songs_found_mb
+
+    _logger.info(f"Step 5. normalizing results")
+    candidates_normal = [c for c in candidates if c.is_normal_performance]
+    candidates_other = [c for c in candidates if not c.is_normal_performance]
+    _logger.debug(f"Found {len(candidates_normal)} normal performances and {len(candidates_other)} other performances")
+
+    _logger.info(f"Step 6. Determining best releases")
+    result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal)
+    result_other: MusicbrainzSearchResult = search_by_recording(candidates_other)
+
+    if result_normal.is_empty():
+        result = result_other
+    else:
+        result = result_normal
 
     if canonical is not None:
         result.add_result(SearchType.CANONICAL, canonical)
+
     elif not result.is_empty():
         _logger.info(f"Retrying failed canonical search using search result")
         k: SearchType

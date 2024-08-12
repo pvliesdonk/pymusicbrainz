@@ -7,7 +7,7 @@ DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/
 
 logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
 logging.getLogger().setLevel(logging.DEBUG)
-logging.getLogger('musicbrainzngs').setLevel(logging.DEBUG)
+logging.getLogger('musicbrainzngs').setLevel(logging.ERROR)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 logging.info(f"Configuring database at {DB_URI}")
@@ -32,7 +32,7 @@ yyy.country
 # xx2 = xx.siblings
 path = pathlib.Path('tests')/'test_file.flac'
 if path.exists():
-    dsakj = pymusicbrainz.search_fingerprint(path)
+    dsakj = pymusicbrainz.search_song("ZZ Top","Gimme All Your Lovin'",file=path)
     dsakj_result = dsakj.get_best_result()
 
 aa = pymusicbrainz.search_song( 'Queen', 'Bohemian Rhapsody' )
