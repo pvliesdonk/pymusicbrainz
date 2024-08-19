@@ -2,14 +2,14 @@ import logging
 
 import mbdata.models
 
-from .dataclasses import Artist, ReleaseGroup, Release, Recording, Track, Work, Medium
-from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID
-from .exceptions import MBApiError, MBIDNotExistsError
+from .dataclasses import Artist, ReleaseGroup, Release, Recording, Track, Work, Medium, MusicBrainzObject
+from .datatypes import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID, MBID
+from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError
 
 _object_cache = {}
 
-
 _logger = logging.getLogger(__name__)
+
 
 def clear_object_cache():
     global _object_cache
@@ -147,3 +147,20 @@ def get_medium(in_obj: mbdata.models.Medium) -> Medium:
             return a
     else:
         raise MBApiError("No parameters given")
+
+
+def get_object_from_id(id: MBID) -> MusicBrainzObject:
+    if isinstance(id, ArtistID):
+        return get_artist(id)
+    elif isinstance(id, ReleaseGroupID):
+        return get_release_group(id)
+    elif isinstance(id, ReleaseID):
+        return get_release(id)
+    elif isinstance(id, RecordingID):
+        return get_recording(id)
+    elif isinstance(id, WorkID):
+        return get_work(id)
+    elif isinstance(id, TrackID):
+        return get_track(id)
+    else:
+        raise NotFoundError(f"Could not identify musicbrainz id {id}")
