@@ -1,5 +1,6 @@
 from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, MediumID, TrackID, WorkID)
 
+
 from .constants import UNKNOWN_ARTIST_ID, VA_ARTIST_ID
 
 from .object_cache import (get_artist, get_medium, get_track, get_recording, get_work, get_release, get_release_group,
@@ -19,3 +20,4 @@ from .dataclasses import (
     Artist, Medium, Track, Recording, Work, Release, ReleaseGroup, MusicbrainzSingleResult, MusicbrainzListResult,
     MusicbrainzSearchResult
 )
+from .util import id_from_string

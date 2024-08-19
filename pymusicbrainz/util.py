@@ -7,8 +7,10 @@ import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
-from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID
-from .dataclasses import ReleaseGroup, Recording
+from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID, MBID, WorkID
+from .dataclasses import ReleaseGroup, Recording, Artist, Release, Work
+from .exceptions import NotFoundError, MBIDNotExistsError
+from .object_cache import get_artist, get_release_group, get_release, get_recording, get_work
 
 _logger = logging.getLogger(__name__)
 
@@ -110,60 +112,60 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
         return area.iso_3166_1_codes[0].code
 
 
-def artist_redirect(rec_id: str | ArtistID) -> ArtistID:
+def artist_redirect(artist_id: str | ArtistID) -> ArtistID:
     from pymusicbrainz import get_db_session
 
-    if isinstance(rec_id, str):
-        in_obj = ArtistID(rec_id)
+    if isinstance(artist_id, str):
+        artist_id = ArtistID(artist_id)
 
     with get_db_session() as session:
         stmt = (
             sa.select(mbdata.models.Artist.gid)
             .join_from(mbdata.models.ArtistGIDRedirect, mbdata.models.Artist,
                        mbdata.models.ArtistGIDRedirect.artist)
-            .where(mbdata.models.ArtistGIDRedirect.gid == str(rec_id))
+            .where(mbdata.models.ArtistGIDRedirect.gid == str(artist_id))
         )
         res = session.scalar(stmt)
         if res is None:
-            return rec_id
+            return artist_id
         else:
             return ArtistID(str(res))
 
-def release_group_redirect(rec_id: str | ReleaseGroupID) -> ReleaseGroupID:
+def release_group_redirect(rg_id: str | ReleaseGroupID) -> ReleaseGroupID:
     from pymusicbrainz import get_db_session
 
-    if isinstance(rec_id, str):
-        in_obj = ReleaseGroupID(rec_id)
+    if isinstance(rg_id, str):
+        rg_id = ReleaseGroupID(rg_id)
 
     with get_db_session() as session:
         stmt = (
             sa.select(mbdata.models.ReleaseGroup.gid)
             .join_from(mbdata.models.ReleaseGroupGIDRedirect, mbdata.models.ReleaseGroup,
                        mbdata.models.ReleaseGroupGIDRedirect.release_group)
-            .where(mbdata.models.ReleaseGroupGIDRedirect.gid == str(rec_id))
+            .where(mbdata.models.ReleaseGroupGIDRedirect.gid == str(rg_id))
         )
         res = session.scalar(stmt)
         if res is None:
-            return rec_id
+            return rg_id
         else:
             return ReleaseGroupID(str(res))
         
-def release_redirect(rec_id: str | ReleaseID) -> ReleaseID:
+def release_redirect(release_id: str | ReleaseID) -> ReleaseID:
     from pymusicbrainz import get_db_session
 
-    if isinstance(rec_id, str):
-        in_obj = ReleaseID(rec_id)
+    if isinstance(release_id, str):
+        release_id = ReleaseID(release_id)
 
     with get_db_session() as session:
         stmt = (
             sa.select(mbdata.models.Release.gid)
             .join_from(mbdata.models.ReleaseGIDRedirect, mbdata.models.Release,
                        mbdata.models.ReleaseGIDRedirect.release)
-            .where(mbdata.models.ReleaseGIDRedirect.gid == str(rec_id))
+            .where(mbdata.models.ReleaseGIDRedirect.gid == str(release_id))
         )
         res = session.scalar(stmt)
         if res is None:
-            return rec_id
+            return release_id
         else:
             return ReleaseID(str(res))
 
@@ -171,7 +173,7 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
     from pymusicbrainz import get_db_session
 
     if isinstance(rec_id, str):
-        in_obj = RecordingID(rec_id)
+        rec_id = RecordingID(rec_id)
 
     with get_db_session() as session:
         stmt = (
@@ -185,3 +187,61 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
             return rec_id
         else:
             return RecordingID(str(res))
+
+
+_uuid_match = re.compile(r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}')
+_url_match = re.compile(r'https?://musicbrainz.org/(\w+)/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})')
+
+
+def id_from_string(id: str) -> MBID:
+    # as url
+    m = _url_match.match(id)
+    if m:
+        mbtype = m.group(1)
+        mbid = m.group(2)
+        _logger.debug(f"Identified '{id}' as a URL for objecttype '{mbtype}' with id '{mbid}'")
+
+        match mbtype:
+            case "artist":
+                return artist_redirect(mbid)
+            case "release-group":
+                return release_group_redirect(mbid)
+            case "release":
+                return release_redirect(mbid)
+            case "recording":
+                return recording_redirect(mbid)
+            case "work":
+                return WorkID(mbid)
+            case _:
+                raise NotImplementedError
+
+    # first try to parse as uuid
+    if _uuid_match.match(id):
+        _logger.debug(f"Identified {id} as a UUID. Determining type")
+        try:
+            result: Artist = get_artist(artist_redirect(id))
+            return result.id
+        except MBIDNotExistsError:
+            pass
+        try:
+            result: ReleaseGroup = get_release_group(release_group_redirect(id))
+            return result.id
+        except MBIDNotExistsError:
+            pass
+        try:
+            result: Release = get_release(release_redirect(id))
+            return result.id
+        except MBIDNotExistsError:
+            pass
+        try:
+            result: Recording = get_recording(recording_redirect(id))
+            return result.id
+        except MBIDNotExistsError:
+            pass
+        try:
+            result: Work = get_work(id)
+            return result.id
+        except MBIDNotExistsError:
+            pass
+
+    raise NotFoundError

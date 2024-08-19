@@ -1,6 +1,7 @@
 import logging
 import pathlib
 
+import pymusicbrainz.util
 from context import pymusicbrainz
 
 DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/musicbrainz_db"
@@ -16,6 +17,10 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+
+str1 = pymusicbrainz.util.id_from_string("5441c29d-3602-4898-b1a1-b77fa23b8e50")
+str2 = pymusicbrainz.util.id_from_string("3cee1d9e-49ce-448e-b261-6b595c84861e")
+str3 = pymusicbrainz.util.id_from_string('https://musicbrainz.org/recording/0bb24ca8-0268-4649-83f4-40c5d9219be5')
 
 fkdjhaksdfj = pymusicbrainz.search_song("The Bangles", "A Hazy Shade of Winter")
 

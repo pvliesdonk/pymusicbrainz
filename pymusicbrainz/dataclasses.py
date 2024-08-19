@@ -41,6 +41,8 @@ class Artist(MusicBrainzObject):
                     in_obj = ArtistID(in_obj)
                 stmt = sa.select(mbdata.models.Artist).where(mbdata.models.Artist.gid == str(in_obj))
                 a: mbdata.models.Artist = session.scalar(stmt)
+                if a is None:
+                    raise MBIDNotExistsError(f"No Artist with ID '{str(in_obj)}'")
 
             self.id: ArtistID = ArtistID(str(a.gid))
             self._db_id: int = a.id
@@ -333,6 +335,9 @@ class ReleaseGroup(MusicBrainzObject):
                 stmt = sa.select(mbdata.models.ReleaseGroup).where(mbdata.models.ReleaseGroup.gid == str(in_obj))
                 rg: mbdata.models.ReleaseGroup = session.scalar(stmt)
 
+                if rg is None:
+                    raise MBIDNotExistsError(f"No Release Group with ID '{str(in_obj)}'")
+
             self.id: ReleaseGroupID = ReleaseGroupID(str(rg.gid))
             self._db_id: int = rg.id
             self.artists = [get_artist(ArtistID(str(a.artist.gid))) for a in rg.artist_credit.artists]
@@ -508,6 +513,9 @@ class Release(MusicBrainzObject):
                 stmt = sa.select(mbdata.models.Release).where(mbdata.models.Release.gid == str(in_obj))
                 rel: mbdata.models.Release = session.scalar(stmt)
 
+                if rel is None:
+                    raise MBIDNotExistsError(f"No Release with ID '{str(in_obj)}'")
+
             self.id: ReleaseID = ReleaseID(str(rel.gid))
             self._db_id: int = rel.id
             self.artists = [get_artist(ArtistID(str(a.artist.gid))) for a in rel.artist_credit.artists]
@@ -682,7 +690,7 @@ class Recording(MusicBrainzObject):
                 stmt = sa.select(mbdata.models.Recording).where(mbdata.models.Recording.gid == str(in_obj))
                 rec: mbdata.models.Recording = session.scalar(stmt)
                 if rec is None:
-                    raise MBIDNotExistsError(f"Recording with id {in_obj} does not exist")
+                    raise MBIDNotExistsError(f"No recording with id '{in_obj}'")
 
             self.id: RecordingID = RecordingID(str(rec.gid))
             self._db_id: int = rec.id
@@ -1011,6 +1019,9 @@ class Work(MusicBrainzObject):
                     in_obj = WorkID(in_obj)
                 stmt = sa.select(mbdata.models.Work).where(mbdata.models.Work.gid == str(in_obj))
                 w: mbdata.models.Work = session.scalar(stmt)
+
+                if w is None:
+                    raise MBIDNotExistsError(f"No Work with ID '{str(in_obj)}'")
 
             self.id: WorkID = WorkID(str(w.gid))
             self._db_id: int = w.id
