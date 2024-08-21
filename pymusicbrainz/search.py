@@ -311,7 +311,8 @@ def search_by_recording(
 def search_by_recording_id(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
-        cut_off: int = None
+        cut_off: int = None,
+        fallback_to_all: bool = False
 
 ) -> MusicbrainzSearchResult:
     results: MusicbrainzSearchResult = MusicbrainzSearchResult()
@@ -325,6 +326,15 @@ def search_by_recording_id(
             cut_off=cut_off)
         if res is not None:
             results.add_result(search_type, res)
+
+    if results.is_empty() and fallback_to_all:
+        res = _search_release_group_by_recording_ids(
+            recording_ids=recording_ids,
+            search_type=SearchType.ALL,
+            use_siblings=use_siblings,
+            cut_off=cut_off)
+        if res is not None:
+            results.add_result(SearchType.ALL, res)
 
     return results
 
