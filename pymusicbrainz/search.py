@@ -9,11 +9,11 @@ import musicbrainzngs
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
-from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
+from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType
 from .exceptions import MBApiError, IllegalArgumentError
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup
-from .util import split_artist, recording_redirect, artist_redirect, release_redirect
+from .util import split_artist, recording_redirect, artist_redirect, release_redirect, title_is_live
 
 _logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ def search_song_musicbrainz(
         title_query: str,
         strict: bool = True,
         limit: int = 20,
+        secondary_type: ReleaseType = None,
         cut_off: int = 90) -> list["Recording"]:
     """Search for a recording in the Musicbrainz API
 
@@ -48,6 +49,9 @@ def search_song_musicbrainz(
         search_params["arid"] = str(artist_query.id)
     if isinstance(artist_query, str):
         search_params["artist"] = artist_query
+
+    if secondary_type is not None:
+        search_params["secondarytype"] = str(secondary_type).lower()
 
     try:
 
@@ -442,11 +446,16 @@ def search_song(
     if cut_off is None:
         cut_off = 90
 
+    live_title = title_is_live(title_query)
+
     _logger.info(f"Searching for '{artist_query}' - '{title_query}'")
 
     # First find a canonical result:
     _logger.info(f"Step 1. performing canonical search on '{artist_query}' - '{title_query}'")
     canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query)
+    if not canonical and live_title:
+        _logger.info(f"Step 1b. retry canonical search for live title on '{artist_query}' - '{live_title}'")
+        canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title)
 
     if canonical:
         _logger.info(f"Found canonical release")
@@ -465,6 +474,11 @@ def search_song(
     _logger.info(f"Step 3. performing a search query on Musicbrainz API")
     songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
                                                               cut_off=cut_off, strict=True)
+
+    if len(songs_found_mb) == 0 and live_title:
+        _logger.info(f"Step 3a. performing a search query on Musicbrainz API for live release")
+        songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=live_title,
+                                                                  cut_off=cut_off, strict=True, secondary_type=ReleaseType.LIVE)
 
     if len(songs_found_mb) == 0:
         _logger.info(f"Step 3b. performing a less restrictive search query on Musicbrainz API")

@@ -20,4 +20,4 @@ from .dataclasses import (
     Artist, Medium, Track, Recording, Work, Release, ReleaseGroup, MusicbrainzSingleResult, MusicbrainzListResult,
     MusicbrainzSearchResult
 )
-from .util import id_from_string
+from .util import id_from_string, title_is_live

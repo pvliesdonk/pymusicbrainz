@@ -1,8 +1,9 @@
 import logging
 import pathlib
 
-import pymusicbrainz.util
+
 from context import pymusicbrainz
+from pymusicbrainz.datatypes import ReleaseType
 
 DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/musicbrainz_db"
 
@@ -17,6 +18,9 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+sdfdsk = pymusicbrainz.title_is_live("Trapped (Live)")
+fdsj = pymusicbrainz.search_song_musicbrainz('Bruce Springsteen', 'Trapped', secondary_type=[ReleaseType.LIVE])
+sdhksfdjh = pymusicbrainz.search_song('Bruce Springsteen', 'Trapped (Live)')
 
 str1 = pymusicbrainz.get_object_from_id(pymusicbrainz.util.id_from_string("5441c29d-3602-4898-b1a1-b77fa23b8e50"))
 str2 = pymusicbrainz.util.id_from_string("3cee1d9e-49ce-448e-b261-6b595c84861e")

@@ -9,7 +9,7 @@ import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
-from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID, MBID, WorkID
+from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID, MBID, WorkID, PerformanceWorkAttributes
 from .dataclasses import ReleaseGroup, Recording, Artist, Release, Work
 from .exceptions import NotFoundError, MBIDNotExistsError
 from .object_cache import get_artist, get_release_group, get_release, get_recording, get_work
@@ -82,6 +82,19 @@ def fold_sort_candidates(
 def flatten_title(artist_name="", recording_name="", album_name="") -> str:
     """ Given the artist name and recording name, return a combined_lookup string """
     return unidecode(re.sub(r'\W+', '', artist_name + album_name + recording_name).lower())
+
+
+_re_live = re.compile(r'(.*) [(\[]live.*?[)\]]', re.IGNORECASE)
+
+def title_is_live(title:str) -> Optional[str]:
+
+    m = _re_live.match(title)
+    if m:
+        new_title = m.group(1)
+        return new_title
+    return None
+
+
 
 
 def parse_partial_date(partial_date: mbdata.models.PartialDate) -> datetime.date | None:
