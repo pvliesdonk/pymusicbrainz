@@ -2,7 +2,9 @@ import datetime
 import logging
 import re
 from typing import Sequence, Optional
+from urllib.parse import urlencode
 
+import requests
 import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
@@ -131,6 +133,7 @@ def artist_redirect(artist_id: str | ArtistID) -> ArtistID:
         else:
             return ArtistID(str(res))
 
+
 def release_group_redirect(rg_id: str | ReleaseGroupID) -> ReleaseGroupID:
     from pymusicbrainz import get_db_session
 
@@ -149,7 +152,8 @@ def release_group_redirect(rg_id: str | ReleaseGroupID) -> ReleaseGroupID:
             return rg_id
         else:
             return ReleaseGroupID(str(res))
-        
+
+
 def release_redirect(release_id: str | ReleaseID) -> ReleaseID:
     from pymusicbrainz import get_db_session
 
@@ -168,6 +172,7 @@ def release_redirect(release_id: str | ReleaseID) -> ReleaseID:
             return release_id
         else:
             return ReleaseID(str(res))
+
 
 def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
     from pymusicbrainz import get_db_session
@@ -190,7 +195,8 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
 
 
 _uuid_match = re.compile(r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}')
-_url_match = re.compile(r'https?://musicbrainz.org/(\w+)/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})')
+_url_match = re.compile(
+    r'https?://musicbrainz.org/(\w+)/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})')
 
 
 def id_from_string(id: str) -> MBID:

@@ -22,6 +22,9 @@ str1 = pymusicbrainz.get_object_from_id(pymusicbrainz.util.id_from_string("5441c
 str2 = pymusicbrainz.util.id_from_string("3cee1d9e-49ce-448e-b261-6b595c84861e")
 str3 = pymusicbrainz.util.id_from_string('https://musicbrainz.org/recording/0bb24ca8-0268-4649-83f4-40c5d9219be5')
 
+
+sdffsdk = pymusicbrainz.search_song(seed_id=pymusicbrainz.util.id_from_string("c9084c90-ccc1-42f8-a1da-e9345455908c"))
+
 fkdjhaksdfj = pymusicbrainz.search_song("The Bangles", "A Hazy Shade of Winter")
 
 gsfhgdsfg = pymusicbrainz.search_song("4 Tops","Reach Out I'll Be There")

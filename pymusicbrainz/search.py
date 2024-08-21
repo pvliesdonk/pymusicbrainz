@@ -10,7 +10,7 @@ from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTI
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType
-from .exceptions import MBApiError
+from .exceptions import MBApiError, IllegalArgumentError
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup
 from .util import split_artist, recording_redirect, artist_redirect, release_redirect
@@ -408,8 +408,13 @@ def search_fingerprint_by_type(
     )
 
 
-def search_song(artist_query: str, title_query: str, file: pathlib.Path = None,  cut_off: int = None) \
-        -> Optional[MusicbrainzSearchResult]:
+def search_song(
+        artist_query: str = None,
+        title_query: str = None,
+        file: pathlib.Path = None,
+        seed_id: RecordingID = None,
+        additional_seed_ids: Sequence[RecordingID] = None,
+        cut_off: int = None) -> Optional[MusicbrainzSearchResult]:
     """Main search function
 
     :param artist_query: Artist name
@@ -417,8 +422,17 @@ def search_song(artist_query: str, title_query: str, file: pathlib.Path = None, 
     :param cut_off:
     :return:
     """
+    if artist_query is None and title_query is None:
+        if seed_id is None:
+            raise IllegalArgumentError("Either provide artist_query and title_query, or a seed_id")
+        seed_recording = get_recording(seed_id)
+        _logger.warning("Reading artist_query and title_query from seed recording id")
+        artist_query = seed_recording.artist_credit_phrase
+        title_query = seed_recording.title
+
     if cut_off is None:
         cut_off = 90
+
     _logger.info(f"Searching for '{artist_query}' - '{title_query}'")
 
     # First find a canonical result:
@@ -480,6 +494,17 @@ def search_song(artist_query: str, title_query: str, file: pathlib.Path = None, 
     else:
         _logger.debug(f"Using results from search query")
         candidates = songs_found_mb
+
+    if additional_seed_ids:
+        _logger.debug(f"Adding additional seed ids")
+        seed_recordings = [get_recording(x) for x in additional_seed_ids]
+        new_candidates = seed_recordings + [c for c in candidates if c not in seed_recordings]
+        candidates = new_candidates
+    if seed_id:
+        _logger.debug(f"Adding seed id")
+        if seed_recording not in candidates:
+            candidates = [seed_recording] + candidates
+
 
     _logger.info(f"Step 5. normalizing results")
     candidates_normal = [c for c in candidates if c.is_normal_performance]

@@ -6,3 +6,6 @@ class MBIDNotExistsError(MBApiError):
 
 class NotFoundError(MBApiError):
     pass
+
+class IllegalArgumentError(MBApiError):
+    pass

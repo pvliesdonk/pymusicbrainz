@@ -793,6 +793,8 @@ class Recording(MusicBrainzObject):
                 result = [rec for rec in work.performance_by_type(self.performance_type) if rec.artists == self.artists]
         return result
 
+
+
     # @cached_property
     # def streams(self) -> list[str]:
     #     result = []
