@@ -1185,6 +1185,8 @@ class MusicbrainzSearchResult:
     def soundtrack(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.SOUNDTRACK)
 
+
+
     def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
         for search_type in SearchType:
             r = self.get_result(search_type)
@@ -1232,6 +1234,10 @@ class MusicbrainzSearchResult:
         elif self.single is not None:
             _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
+
+        elif self.all is not None:
+            _logger.debug("No other release found, but found something outside my predefined categories")
+            choice = SearchType.ALL
         
         # should never get here
         if choice is None:
