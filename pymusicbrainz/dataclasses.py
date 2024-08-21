@@ -1145,8 +1145,9 @@ class MusicbrainzListResult(list[MusicbrainzSingleResult]):
 
 class MusicbrainzSearchResult:
 
-    def __init__(self):
+    def __init__(self, live: bool = False):
         self._dict : dict[SearchType, MusicbrainzListResult] = {}
+        self.live = live
 
     def add_result(self, search_type: SearchType, result: MusicbrainzListResult) -> None:
         self._dict[search_type] = result
