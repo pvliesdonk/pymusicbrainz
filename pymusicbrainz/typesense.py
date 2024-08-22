@@ -4,6 +4,7 @@ from typing import Any
 import typesense
 import urllib3.util
 from typesense.exceptions import TypesenseClientError
+from urllib3.exceptions import ReadTimeoutError
 
 from . import constants
 from .datatypes import ArtistID, ReleaseID, RecordingID
@@ -102,5 +103,8 @@ def do_typesense_lookup(artist_name, recording_name) -> list[dict[str, Any]]:
 
         return output
     except TypesenseClientError as ex:
+        _logger.exception("Could not get a response from Typesense server")
+        return []
+    except ReadTimeoutError as ex:
         _logger.exception("Could not get a response from Typesense server")
         return []
