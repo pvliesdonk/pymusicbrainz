@@ -1232,11 +1232,11 @@ class MusicbrainzSearchResult:
                     _logger.debug("Switching to single older than soundtrack")
                     choice = SearchType.SINGLE
         
-        elif self.single is not None:
+        elif choice is None and self.single is not None:
             _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
 
-        elif self.all is not None:
+        elif choice is None and self.all is not None:
             _logger.debug("No other release found, but found something outside my predefined categories")
             choice = SearchType.ALL
         
