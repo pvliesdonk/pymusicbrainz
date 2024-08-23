@@ -167,6 +167,7 @@ class Artist(MusicBrainzObject):
             stmt = self._release_group_query(primary_type=primary_type, secondary_types=secondary_types,
                                              credited=credited, contributing=contributing)
             result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt).all()
+            _logger.debug(f"Found {len(result)} release groups matching criteria")
 
         return result
 
