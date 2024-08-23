@@ -18,6 +18,8 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+fdjoiaj = pymusicbrainz.search_song('David Glen Eisley', 'Sweet Victory')
+
 sdfdsk = pymusicbrainz.title_is_live("Trapped (Live)")
 fdsj = pymusicbrainz.search_song_musicbrainz('Bruce Springsteen', 'Trapped', secondary_type=[ReleaseType.LIVE])
 sdhksfdjh = pymusicbrainz.search_song('Bruce Springsteen', 'Trapped (Live)')

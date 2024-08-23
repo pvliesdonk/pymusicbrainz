@@ -123,8 +123,10 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
             if parent_area is None:
                 return None
             area = parent_area
-
-        return area.iso_3166_1_codes[0].code
+        try:
+            return area.iso_3166_1_codes[0].code
+        except IndexError as ex:
+            return None
 
 
 def artist_redirect(artist_id: str | ArtistID) -> ArtistID:
