@@ -1158,13 +1158,17 @@ class MusicbrainzSearchResult:
         self._dict[search_type] = result
 
     def get_result(self, search_type: SearchType) -> Optional[MusicbrainzSingleResult]:
-        if search_type in self._dict.keys():
+        if search_type in self._dict.keys() and len(self._dict[search_type])>0:
             self._dict[search_type].sort()
             return self._dict[search_type][0]
         return None
 
     def is_empty(self) -> bool:
-        return len(self._dict) == 0
+        if len(self._dict) == 0:
+            return True
+        if all([len(x) == 0 for x in self._dict.items()]):
+            return True
+        return False
 
     @property
     def canonical(self) -> Optional[MusicbrainzSingleResult]:
