@@ -18,6 +18,9 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 
+
+wjefefhiuh = pymusicbrainz.search_song('Justin Timberlake', 'CAN’T STOP THE FEELING!')
+
 fdjoiaj = pymusicbrainz.search_song('David Glen Eisley', 'Sweet Victory')
 
 sdfdsk = pymusicbrainz.title_is_live("Trapped (Live)")

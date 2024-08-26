@@ -10,7 +10,7 @@ from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTI
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType
-from .exceptions import MBApiError, IllegalArgumentError
+from .exceptions import MBApiError, IllegalArgumentError, IllegaleRecordingReleaseGroupCombination
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup
 from .util import split_artist, recording_redirect, artist_redirect, release_redirect, title_is_live
@@ -155,8 +155,12 @@ def search_song_canonical(
         _logger.info(f"Found canonical release for '{artist_query}' - '{title_query}'")
         result: MusicbrainzListResult = MusicbrainzListResult()
         for hit in canonical_hits:
-            r = MusicbrainzSingleResult(release_group=hit['release_group'], recording=hit['recording'])
-            result.append(r)
+            try:
+                r = MusicbrainzSingleResult(release_group=hit['release_group'], recording=hit['recording'])
+                result.append(r)
+            except IllegaleRecordingReleaseGroupCombination as ex:
+                _logger.error(ex)
+                _logger.error("Could not match canonical result to database. Likely due to updated references.")
         result.sort()
         return result
     else:

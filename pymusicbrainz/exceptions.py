@@ -9,3 +9,6 @@ class NotFoundError(MBApiError):
 
 class IllegalArgumentError(MBApiError):
     pass
+
+class IllegaleRecordingReleaseGroupCombination(MBApiError):
+    pass

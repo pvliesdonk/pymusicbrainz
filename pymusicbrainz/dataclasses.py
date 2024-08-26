@@ -14,7 +14,7 @@ from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_C
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
-from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError
+from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleRecordingReleaseGroupCombination
 
 _logger = logging.getLogger(__name__)
 
@@ -1123,7 +1123,11 @@ class MusicbrainzSingleResult:
         self.release_group = release_group
         self.recording = recording
         if release is None or track is None:
-            self.release, self.track = find_track_release_for_release_group_recording(release_group, recording)
+            try:
+                self.release, self.track = find_track_release_for_release_group_recording(release_group, recording)
+            except IllegaleRecordingReleaseGroupCombination as ex:
+                raise ex
+
         else:
             self.release = release
             self.track = track
@@ -1266,4 +1270,6 @@ def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: 
             if track.recording == recording:
                 potential_results.append((r, track))
     # do some sorting/selection
+    if len(potential_results) == 0:
+        raise IllegaleRecordingReleaseGroupCombination(f"Release Group {rg} does not contain Recording {recording}")
     return min(potential_results)
