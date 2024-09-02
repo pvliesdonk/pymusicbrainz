@@ -383,7 +383,7 @@ def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> l
                 # print(f"Acoustid: dropping {recording} ({rec['sources']} sources)")
                 continue
             if redirected_id not in recording_ids:
-                print(f"Acoustid: adding {recording} ({rec['sources']} sources)")
+                _logger.debug(f"Acoustid: adding {recording} ({rec['sources']} sources)")
                 recording_ids.append(redirected_id)
             previous_score = rec['sources']
     return recording_ids
