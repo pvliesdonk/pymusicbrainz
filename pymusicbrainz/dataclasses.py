@@ -792,6 +792,7 @@ class Recording(MusicBrainzObject):
                     f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
 
                 result = [rec for rec in work.performance_by_type(self.performance_type) if rec.artists == self.artists]
+        _logger.debug(f"Identified {len(result)} siblings")
         return result
 
 
