@@ -12,7 +12,7 @@ from .db import get_db_session
 
 from .search import (
     search_song, search_song_musicbrainz, search_song_canonical, search_artist_musicbrainz,
-    search_by_recording_id, search_fingerprint
+    search_by_recording_id, search_fingerprint, recording_id_from_fingerprint
 
 )
 

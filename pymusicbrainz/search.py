@@ -348,7 +348,7 @@ def search_by_recording_id(
     return results
 
 
-def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> list[RecordingID]:
+def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> list[RecordingID]:
     if cut_off is None:
         cut_off = 97
 
@@ -386,7 +386,7 @@ def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> l
 
 def search_fingerprint(file: pathlib.Path, cut_off: int = None) \
         -> MusicbrainzSearchResult:
-    recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
+    recording_ids = recording_id_from_fingerprint(file=file, cut_off=cut_off)
 
     recordings = [get_recording(x) for x in recording_ids]
 
@@ -409,7 +409,7 @@ def search_fingerprint_by_type(
         search_type: SearchType,
         use_siblings: bool = True,
         cut_off: int = None) -> MusicbrainzListResult:
-    recording_ids = _recording_id_from_fingerprint(file=file, cut_off=cut_off)
+    recording_ids = recording_id_from_fingerprint(file=file, cut_off=cut_off)
 
     return _search_release_group_by_recording_ids(
         recording_ids=recording_ids,
@@ -462,7 +462,7 @@ def search_song(
     # Doing fingerprint look up
     if file:
         _logger.info(f"Step 2. performing acoustid fingerprint lookup")
-        songs_found_fp: list[Recording] = [get_recording(x) for x in _recording_id_from_fingerprint(file)]
+        songs_found_fp: list[Recording] = [get_recording(x) for x in recording_id_from_fingerprint(file)]
         _logger.debug(f"Found {len(songs_found_fp)} results from fingerprint lookup search")
     else:
         _logger.info(f"Step 2. skipping acoustid fingerprint lookup")
