@@ -373,19 +373,15 @@ def _recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> l
             continue
         _logger.debug(f"Processing acoustid https://acoustid.org/track/{result['id']}")
         recordings = sorted(result["recordings"], key=lambda x: x['sources'], reverse=True)
-        previous_score = None
         for rec in recordings:
 
             redirected_id = recording_redirect(rec['id'])
             recording = get_recording(redirected_id)
 
-            if previous_score is not None and (previous_score - rec['sources']) > 10:
-                # print(f"Acoustid: dropping {recording} ({rec['sources']} sources)")
-                continue
             if redirected_id not in recording_ids:
                 _logger.debug(f"Acoustid: adding {recording} ({rec['sources']} sources)")
                 recording_ids.append(redirected_id)
-            previous_score = rec['sources']
+                break
     return recording_ids
 
 
