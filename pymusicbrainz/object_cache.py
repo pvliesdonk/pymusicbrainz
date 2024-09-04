@@ -91,7 +91,11 @@ def get_recording(in_obj: RecordingID | str | mbdata.models.Recording) -> Record
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
-        a = Recording(in_obj)
+        try:
+            a = Recording(in_obj)
+        except MBIDNotExistsError:
+            from .util import recording_redirect
+            a = Recording(recording_redirect(in_obj))
         _object_cache[a.id] = a
         return a
 
