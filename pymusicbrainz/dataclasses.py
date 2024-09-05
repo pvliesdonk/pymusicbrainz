@@ -10,6 +10,7 @@ import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
 
+
 from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
@@ -292,6 +293,10 @@ class Artist(MusicBrainzObject):
         else:
             return f"Artist:  {self.name} [{self.id}]"
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
+
     def __eq__(self, other):
         if isinstance(other, Artist):
             return self.id == other.id
@@ -463,6 +468,10 @@ class ReleaseGroup(MusicBrainzObject):
         )
         return f"Release Group:  {self.artist_credit_phrase} - {self.title}{s1}{s2} [{self.id}]"
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
+
     def __eq__(self, other):
         if isinstance(other, ReleaseGroup):
             return self.id == other.id
@@ -631,6 +640,10 @@ class Release(MusicBrainzObject):
         )
         return f"Release:  {self.artist_credit_phrase}: {self.title}{s2}{s1} [{self.id}]"
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
+
     def __eq__(self, other):
         if isinstance(other, Release):
             return self.id == other.id
@@ -780,7 +793,7 @@ class Recording(MusicBrainzObject):
     @cached_property
     def siblings(self) -> list["Recording"]:
         result = []
-        _logger.debug(f"Computing siblings of {self.__repr__()}")
+        _logger.debug(f"Computing siblings of {self}")
         works = self.performance_of
         for work in works:
             if len(self.performance_type) == 0:
@@ -847,6 +860,10 @@ class Recording(MusicBrainzObject):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
         return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}] " + (
             "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
+
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
 
     def __eq__(self, other):
         if isinstance(other, Recording):
@@ -937,6 +954,10 @@ class Medium(MusicBrainzObject):
                 + (f" - {self.title}" if self.title else "")
         )
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
+
     def __contains__(self, item):
         if isinstance(item, Artist):
             return any([item in t.artists for t in self.tracks])
@@ -996,6 +1017,10 @@ class Track(MusicBrainzObject):
 
     def __repr__(self):
         return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"
+
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1086,6 +1111,10 @@ class Work(MusicBrainzObject):
     def __repr__(self):
         return f"Work:  {self.title}  [{self.id}]"
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
+
     def __eq__(self, other):
         if isinstance(other, Work):
             return self.id == other.id
@@ -1135,6 +1164,10 @@ class MusicbrainzSingleResult:
 
     def __repr__(self):
         return self.track.__repr__()
+
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
 
     def __lt__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
@@ -1259,6 +1292,9 @@ class MusicbrainzSearchResult:
     def __repr__(self):
         return "(Search result) best result:" + self.get_best_result().track.__repr__()
 
+    def __rich__(self):
+        from rich.markup import escape
+        return escape(self.__repr__())
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
     potential_results = []

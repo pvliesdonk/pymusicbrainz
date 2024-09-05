@@ -31,7 +31,11 @@ def get_artist(in_obj: ArtistID | str | mbdata.models.Artist) -> Artist:
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
-        a = Artist(in_obj)
+        try:
+            a = Artist(in_obj)
+        except MBIDNotExistsError:
+            from pymusicbrainz.util import artist_redirect
+            a = Artist(artist_redirect(in_obj))
         _object_cache[a.id] = a
         return a
 
@@ -51,7 +55,11 @@ def get_release_group(in_obj: ReleaseGroupID | str | mbdata.models.ReleaseGroup)
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
-        a = ReleaseGroup(in_obj)
+        try:
+            a = ReleaseGroup(in_obj)
+        except MBIDNotExistsError:
+            from pymusicbrainz.util import release_group_redirect
+            a = ReleaseGroup(release_group_redirect(in_obj))
         _object_cache[a.id] = a
         return a
 
@@ -71,7 +79,11 @@ def get_release(in_obj: ReleaseID | str | mbdata.models.Release) -> Release:
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
-        a = Release(in_obj)
+        try:
+            a = Release(in_obj)
+        except:
+            from pymusicbrainz.util import release_redirect
+            a = Release(release_redirect(in_obj))
         _object_cache[a.id] = a
         return a
 
