@@ -372,6 +372,10 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
         if result['score'] < cut_off / 100:
             continue
         _logger.debug(f"Processing acoustid https://acoustid.org/track/{result['id']}")
+        if "recordings" not in result.keys():
+            _logger.warning("Invalid response from acoustid server")
+            continue
+
         recordings = sorted(result["recordings"], key=lambda x: x['sources'], reverse=True)
         rec = recordings[0]
 
