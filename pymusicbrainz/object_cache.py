@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import shelve
+import uuid
 
 import mbdata.models
 
@@ -26,7 +27,7 @@ def clear_object_cache():
         _object_cache.sync()
 
 
-def get_artist(in_obj: ArtistID | str | mbdata.models.Artist) -> Artist:
+def get_artist(in_obj: ArtistID | str | mbdata.models.Artist | uuid.UUID) -> Artist:
     global _object_cache
     if isinstance(in_obj, mbdata.models.Artist):
         if ArtistID(str(in_obj.gid)) in _object_cache.keys():
@@ -35,7 +36,7 @@ def get_artist(in_obj: ArtistID | str | mbdata.models.Artist) -> Artist:
             a = Artist(in_obj)
             _object_cache[ArtistID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) :
         in_obj = ArtistID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -50,7 +51,7 @@ def get_artist(in_obj: ArtistID | str | mbdata.models.Artist) -> Artist:
         return a
 
 
-def get_release_group(in_obj: ReleaseGroupID | str | mbdata.models.ReleaseGroup) -> ReleaseGroup:
+def get_release_group(in_obj: ReleaseGroupID | str | mbdata.models.ReleaseGroup | uuid.UUID) -> ReleaseGroup:
     global _object_cache
     if isinstance(in_obj, mbdata.models.ReleaseGroup):
         if ReleaseGroupID(str(in_obj.gid)) in _object_cache.keys():
@@ -59,7 +60,7 @@ def get_release_group(in_obj: ReleaseGroupID | str | mbdata.models.ReleaseGroup)
             a = ReleaseGroup(in_obj)
             _object_cache[ReleaseGroupID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = ReleaseGroupID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -74,7 +75,7 @@ def get_release_group(in_obj: ReleaseGroupID | str | mbdata.models.ReleaseGroup)
         return a
 
 
-def get_release(in_obj: ReleaseID | str | mbdata.models.Release) -> Release:
+def get_release(in_obj: ReleaseID | str | mbdata.models.Release | uuid.UUID) -> Release:
     global _object_cache
     if isinstance(in_obj, mbdata.models.Release):
         if ReleaseID(str(in_obj.gid)) in _object_cache.keys():
@@ -83,7 +84,7 @@ def get_release(in_obj: ReleaseID | str | mbdata.models.Release) -> Release:
             a = Release(in_obj)
             _object_cache[ReleaseID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = ReleaseID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -98,7 +99,7 @@ def get_release(in_obj: ReleaseID | str | mbdata.models.Release) -> Release:
         return a
 
 
-def get_recording(in_obj: RecordingID | str | mbdata.models.Recording) -> Recording:
+def get_recording(in_obj: RecordingID | str | mbdata.models.Recording | uuid.UUID) -> Recording:
     global _object_cache
     if isinstance(in_obj, mbdata.models.Recording):
         if RecordingID(str(in_obj.gid)) in _object_cache.keys():
@@ -107,7 +108,7 @@ def get_recording(in_obj: RecordingID | str | mbdata.models.Recording) -> Record
             a = Recording(in_obj)
             _object_cache[RecordingID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = RecordingID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -122,7 +123,7 @@ def get_recording(in_obj: RecordingID | str | mbdata.models.Recording) -> Record
         return a
 
 
-def get_track(in_obj: TrackID | str | mbdata.models.Track) -> Track:
+def get_track(in_obj: TrackID | str | mbdata.models.Track | uuid.UUID) -> Track:
     global _object_cache
     if isinstance(in_obj, mbdata.models.Track):
         if TrackID(str(in_obj.gid)) in _object_cache.keys():
@@ -131,7 +132,7 @@ def get_track(in_obj: TrackID | str | mbdata.models.Track) -> Track:
             a = Track(in_obj)
             _object_cache[TrackID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = TrackID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -142,7 +143,7 @@ def get_track(in_obj: TrackID | str | mbdata.models.Track) -> Track:
         return a
 
 
-def get_work(in_obj: WorkID | str | mbdata.models.Work) -> Work:
+def get_work(in_obj: WorkID | str | mbdata.models.Work | uuid.UUID) -> Work:
     global _object_cache
     if isinstance(in_obj, mbdata.models.Work):
         if WorkID(str(in_obj.gid)) in _object_cache.keys():
@@ -151,7 +152,7 @@ def get_work(in_obj: WorkID | str | mbdata.models.Work) -> Work:
             a = Work(in_obj)
             _object_cache[WorkID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str):
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = WorkID(in_obj)
 
     if in_obj in _object_cache.keys():
@@ -162,7 +163,7 @@ def get_work(in_obj: WorkID | str | mbdata.models.Work) -> Work:
         return a
 
 
-def get_medium(in_obj: mbdata.models.Medium) -> Medium:
+def get_medium(in_obj: mbdata.models.Medium | uuid.UUID) -> Medium:
     global _object_cache
     if in_obj is not None:
         id = repr(in_obj.id)
