@@ -1,4 +1,6 @@
 import logging
+import pathlib
+import shelve
 
 import mbdata.models
 
@@ -11,9 +13,17 @@ _object_cache = {}
 _logger = logging.getLogger(__name__)
 
 
+def configure_object_cache(file: pathlib.Path) -> None:
+    global _object_cache
+    _object_cache = shelve.open(file)
+
+
 def clear_object_cache():
     global _object_cache
-    _object_cache = {}
+    if isinstance(_object_cache, dict):
+        _object_cache = {}
+    if isinstance(_object_cache, shelve.Shelf):
+        _object_cache.sync()
 
 
 def get_artist(in_obj: ArtistID | str | mbdata.models.Artist) -> Artist:
@@ -155,11 +165,12 @@ def get_work(in_obj: WorkID | str | mbdata.models.Work) -> Work:
 def get_medium(in_obj: mbdata.models.Medium) -> Medium:
     global _object_cache
     if in_obj is not None:
-        if in_obj.id in _object_cache.keys():
-            return _object_cache[in_obj.id]
+        id = repr(in_obj.id)
+        if id in _object_cache.keys():
+            return _object_cache[id]
         else:
             a = Medium(in_obj)
-            _object_cache[in_obj.id] = a
+            _object_cache[id] = a
             return a
     else:
         raise MBApiError("No parameters given")

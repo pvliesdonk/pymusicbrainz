@@ -4,7 +4,7 @@ from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID
 from .constants import UNKNOWN_ARTIST_ID, VA_ARTIST_ID
 
 from .object_cache import (get_artist, get_medium, get_track, get_recording, get_work, get_release, get_release_group,
-                           clear_object_cache, get_object_from_id)
+                           clear_object_cache, get_object_from_id, configure_object_cache)
 
 from .config import configure_database, configure_musicbrainzngs, configure_typesense, is_configured_musicbrainzngs
 

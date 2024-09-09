@@ -17,7 +17,7 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
-
+pymusicbrainz.configure_object_cache(pathlib.Path("object_cache.db"))
 
 sfdgdsfg = pymusicbrainz.search_song(seed_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 

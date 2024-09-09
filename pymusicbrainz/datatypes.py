@@ -5,9 +5,20 @@ import uuid
 _logger = logging.getLogger(__name__)
 
 
-class MBID(uuid.UUID):
+class MBID(str):
     """Abstract representation of a Musicbrainz Identifier"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+
+        if isinstance(mbid, str):
+            self = mbid
+
+        elif isinstance(mbid, uuid.UUID):
+            self = str(mbid)
+
+    def __repr__(self):
+        return f"{type(self)}({self._mbid})"
+
 
 
 class ArtistID(MBID):
@@ -95,6 +106,7 @@ class SearchType(enum.StrEnum):
     SOUNDTRACK = "soundtrack"
     EP = "ep"
     ALL = "all"
+
 
 class PerformanceWorkAttributes(enum.StrEnum):
     ACAPELLA = "acapella"
