@@ -36,7 +36,7 @@ def get_artist(in_obj: ArtistID | str | mbdata.models.Artist | uuid.UUID) -> Art
             a = Artist(in_obj)
             _object_cache[ArtistID(str(in_obj.gid))] = a
             return a
-    if isinstance(in_obj, str) :
+    if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
         in_obj = ArtistID(in_obj)
 
     if in_obj in _object_cache.keys():

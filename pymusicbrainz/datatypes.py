@@ -5,23 +5,32 @@ import uuid
 _logger = logging.getLogger(__name__)
 
 
-class MBID(str):
+class MBID:
     """Abstract representation of a Musicbrainz Identifier"""
 
     def __init__(self, mbid: str | uuid.UUID):
 
         if isinstance(mbid, str):
-            self = mbid
+            self.mbid: uuid.UUID = uuid.UUID(mbid)
 
         elif isinstance(mbid, uuid.UUID):
-            self = str(mbid)
+            self.mbid = mbid
+
+        else:
+            _logger.error("SOMETHING IS WRONG!!!")
 
     def __repr__(self):
-        return f"{type(self)}({self._mbid})"
+        return f"{type(self)}({str(self.mbid)})"
+
+    def __str__(self):
+        return str(self.mbid)
 
     @property
     def hex(self) -> str:
-        return self.replace('-', '')
+        return self.mbid.hex
+
+    def encode(self, encoding:str = "utf-8", errors: str = "strict") -> bytes:
+        return str(self.mbid).encode(encoding, errors)
 
 
 class ArtistID(MBID):
