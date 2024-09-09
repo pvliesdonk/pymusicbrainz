@@ -19,6 +19,9 @@ class MBID(str):
     def __repr__(self):
         return f"{type(self)}({self._mbid})"
 
+    @property
+    def hex(self) -> str:
+        return self.replace('-', '')
 
 
 class ArtistID(MBID):
