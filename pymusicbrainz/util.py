@@ -4,6 +4,7 @@ import re
 from typing import Sequence, Optional
 from urllib.parse import urlencode
 
+import rapidfuzz
 import requests
 import sqlalchemy as sa
 import mbdata.models
@@ -82,6 +83,11 @@ def fold_sort_candidates(
 def flatten_title(artist_name="", recording_name="", album_name="") -> str:
     """ Given the artist name and recording name, return a combined_lookup string """
     return unidecode(re.sub(r'\W+', '', artist_name + album_name + recording_name).lower())
+
+
+def string_dif(s1: str, s2: str) -> float:
+    rapidfuzz.fuzz.ratio(s1,s2, processor=rapidfuzz.utils.default_process
+    )
 
 
 _re_live = re.compile(r'(.*) [(\[]live.*?[)\]]', re.IGNORECASE)

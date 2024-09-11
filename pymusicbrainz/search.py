@@ -156,7 +156,7 @@ def search_song_canonical(
         result: MusicbrainzListResult = MusicbrainzListResult()
         for hit in canonical_hits:
             try:
-                r = MusicbrainzSingleResult(release_group=hit['release_group'], recording=hit['recording'])
+                r = MusicbrainzSingleResult(release=hit['release'], release_group=hit['release_group'], recording=hit['recording'])
                 result.append(r)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 _logger.error(ex)

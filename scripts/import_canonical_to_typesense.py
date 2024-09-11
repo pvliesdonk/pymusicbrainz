@@ -17,7 +17,7 @@ from unidecode import unidecode
 
 # get latest dataset from https://data.metabrainz.org/pub/musicbrainz/canonical_data/
 
-DATA_FILE_NAME = "musicbrainz-canonical-dump-20240717-080003.tar.zst"
+DATA_FILE_NAME = "musicbrainz-canonical-dump-20240903-080003.tar.zst"
 DATA_FILE = pathlib.Path(DATA_FILE_NAME).resolve(strict=True)
 
 TYPESENSE_COLLECTION = "musicbrainz"
@@ -137,7 +137,11 @@ def search(artist_name, recording_name):
 
 
 # Delete old collection
-client.collections[TYPESENSE_COLLECTION].delete()
+try:
+    client.collections[TYPESENSE_COLLECTION].delete()
+except typesense.exceptions.ObjectNotFound:
+    pass
+
 
 # Create collection
 client.collections.create(musicbrainz_schema)

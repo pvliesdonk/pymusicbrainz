@@ -1152,12 +1152,16 @@ class MusicbrainzSingleResult:
                  track: Optional[Track] = None):
         self.release_group = release_group
         self.recording = recording
-        if release is None or track is None:
+        if release is None:
             try:
                 self.release, self.track = find_track_release_for_release_group_recording(release_group, recording)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 raise ex
-
+        elif track is None:
+            try:
+                self.track = find_track_for_release_recording(release, recording)
+            except IllegaleRecordingReleaseGroupCombination as ex:
+                raise ex
         else:
             self.release = release
             self.track = track
@@ -1313,4 +1317,12 @@ def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: 
     # do some sorting/selection
     if len(potential_results) == 0:
         raise IllegaleRecordingReleaseGroupCombination(f"Release Group {rg} does not contain Recording {recording}")
+    return min(potential_results)
+
+def find_track_for_release_recording(r: Release, recording: Recording) -> Track:
+    potential_results = []
+    for track in r.tracks:
+        if track.recording == recording:
+            potential_results.append(track)
+    # do some sorting/selection
     return min(potential_results)
