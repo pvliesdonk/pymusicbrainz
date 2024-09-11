@@ -1309,6 +1309,8 @@ def find_track_for_release_recording(release: Release, recording: Recording) -> 
     for track in release.tracks:
         if track.recording == recording:
             potential_results.append(track)
+    if len(potential_results) == 0:
+        raise IllegaleRecordingReleaseGroupCombination(f"Release {release} does not contain Recording {recording}")
     return min(potential_results)
 
 
@@ -1323,10 +1325,3 @@ def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: 
         raise IllegaleRecordingReleaseGroupCombination(f"Release Group {rg} does not contain Recording {recording}")
     return min(potential_results)
 
-def find_track_for_release_recording(r: Release, recording: Recording) -> Track:
-    potential_results = []
-    for track in r.tracks:
-        if track.recording == recording:
-            potential_results.append(track)
-    # do some sorting/selection
-    return min(potential_results)
