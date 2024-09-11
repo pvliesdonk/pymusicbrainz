@@ -20,10 +20,13 @@ class MBID:
             _logger.error("SOMETHING IS WRONG!!!")
 
     def __repr__(self):
-        return f"{type(self)}({str(self.mbid)})"
+        return f"{type(self).__name__}({str(self.mbid)})"
 
     def __str__(self):
         return str(self.mbid)
+
+    def __hash__(self):
+        return hash(self.mbid.hex)
 
     def __eq__(self, other):
         return self.mbid == other.mbid
