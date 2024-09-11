@@ -1154,12 +1154,13 @@ class MusicbrainzSingleResult:
         self.recording = recording
         if release is None:
             try:
-                self.release, self.track = find_track_release_for_release_group_recording(release_group, recording)
+                self.release, self.track = find_track_release_for_release_group_recording(self.release_group, self.recording)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 raise ex
         elif track is None:
             try:
-                self.track = find_track_for_release_recording(release, recording)
+                self.release = release
+                self.track = find_track_for_release_recording(self.release, self.recording)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 raise ex
         else:
