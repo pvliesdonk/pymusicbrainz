@@ -25,6 +25,9 @@ class MBID:
     def __str__(self):
         return str(self.mbid)
 
+    def __eq__(self, other):
+        return self.mbid == other.mbid
+
     @property
     def hex(self) -> str:
         return self.mbid.hex
