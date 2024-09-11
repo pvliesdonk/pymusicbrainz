@@ -1166,6 +1166,10 @@ class MusicbrainzSingleResult:
             self.release = release
             self.track = track
 
+        if self.release.release_group.id != self.release_group.id:
+            _logger.warning(f"Git a strange combination of {self.release} with {self.release_group}. Fixing.")
+            self.release_group = self.release.release_group
+
     def __repr__(self):
         return self.track.__repr__()
 
