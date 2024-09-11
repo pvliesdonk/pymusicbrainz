@@ -461,7 +461,7 @@ def search_song(
         canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title)
 
     if canonical:
-        _logger.info(f"Found canonical release")
+        _logger.info(f"Found canonical release: {canonical[0].track}")
 
     # Doing fingerprint look up
     if file:

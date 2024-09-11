@@ -1253,35 +1253,31 @@ class MusicbrainzSearchResult:
             raise NotFoundError("Result is empty")
 
         choice = None						
-        if self.canonical is not None:							
-            _logger.debug("Found canonical result")
+        if self.canonical is not None:
             choice = SearchType.CANONICAL
 
         if self.studio_album is not None:						# there may be no canonical
             if self.studio_album != self.canonical:
-                _logger.debug("Switching to studio album result")
                 choice = SearchType.STUDIO_ALBUM
             # else keep canonical
             if self.soundtrack is not None:
                 if self.soundtrack < self.studio_album:
-                    _logger.debug("Found soundrack older than studio album")
+                    _logger.debug("Found soundtrack older than studio album")
                     choice = SearchType.SOUNDTRACK
         elif self.ep is not None:							# there is no album
             if self.ep != self.canonical:
-                _logger.debug("Switching to EP result")
                 choice = SearchType.EP
             if self.soundtrack is not None:
                 if self.soundtrack < self.ep:
-                    _logger.debug("Found soundrack older than ep")
+                    _logger.debug("Found soundtrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
         elif self.soundtrack is not None:						# there is no ep
             if self.soundtrack != self.canonical:
-                _logger.debug("Switching to soundtrack result")
                 choice = SearchType.SOUNDTRACK
             if self.single is not None:
                 if self.single < self.soundtrack:
-                    _logger.debug("Switching to single older than soundtrack")
+                    _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
         
         elif choice is None and self.single is not None:
@@ -1295,6 +1291,8 @@ class MusicbrainzSearchResult:
         # should never get here
         if choice is None:
             raise NotFoundError("Was not able to determine a best result for non-empy result set")
+        else:
+            _logger.debug(f"Best Musicbrainz result is of type {str(choice)}")
 
         return self.get_result(choice)
 
