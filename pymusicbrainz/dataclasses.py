@@ -4,7 +4,7 @@ import re
 from abc import ABC
 from collections.abc import Generator
 from functools import cached_property, cache
-from typing import Optional
+from typing import Optional, Any
 
 import mbdata.models
 import rapidfuzz
@@ -17,12 +17,18 @@ from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, Recordi
 from .db import get_db_session
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleRecordingReleaseGroupCombination
 
+
 _logger = logging.getLogger(__name__)
 
+def escape(s: Any) -> str:
+    return re.sub(r'\'', '\\\'', str(s))
 
 class MusicBrainzObject(ABC):
     """Abstract object representing any of the primary Musicbrainz entities"""
-    pass
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.__str__()})"
+
 
 
 class Artist(MusicBrainzObject):
@@ -79,6 +85,8 @@ class Artist(MusicBrainzObject):
 # where c.descendant = 5155
 # and p.type = 1
 
+
+    @cached_property
     def url(self) -> str:
         return f"https://musicbrainz.org/artist/{self.id}"
 
@@ -287,15 +295,17 @@ class Artist(MusicBrainzObject):
             _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         return artist_ratio > cut_off
 
-    def __repr__(self):
+    def __str__(self):
         if self.disambiguation is not None:
-            return f"Artist:  {self.name} [{self.id}] ({self.disambiguation})"
+            return f"{self.name} [{self.id}] ({self.disambiguation})"
         else:
-            return f"Artist:  {self.name} [{self.id}]"
+            return f"{self.name} [{self.id}]"
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        if self.disambiguation is not None:
+            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\] ({escape(self.disambiguation)})"
+        else:
+            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\]"
 
     def __eq__(self, other):
         if isinstance(other, Artist):
@@ -461,16 +471,20 @@ class ReleaseGroup(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
-    def __repr__(self):
+
+    def __str__(self):
         s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
         )
-        return f"Release Group:  {self.artist_credit_phrase} - {self.title}{s1}{s2} [{self.id}]"
+        return f"'{self.artist_credit_phrase}' - '{self.title}'{s1}{s2} [{self.id}]"
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
+        s2 = (
+            f" {self.first_release_date}" if self.first_release_date is not None else ""
+        )
+        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s1}{s2} \[[link={self.url}]{self.id}[/link]\]"
 
     def __eq__(self, other):
         if isinstance(other, ReleaseGroup):
@@ -631,18 +645,23 @@ class Release(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
-    def __repr__(self):
+    def __str__(self):
         s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
               (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
               )
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
         )
-        return f"Release:  {self.artist_credit_phrase}: {self.title}{s2}{s1} [{self.id}]"
+        return f"'{self.artist_credit_phrase}' - '{self.title}'{s2}{s1} [{self.id}]"
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
+              (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
+              )
+        s2 = (
+            f" {self.first_release_date}" if self.first_release_date is not None else ""
+        )
+        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s2}{s1} \[[link={self.url}]{self.id}[/link]\]"
 
     def __eq__(self, other):
         if isinstance(other, Release):
@@ -856,14 +875,16 @@ class Recording(MusicBrainzObject):
     #                 return id_
     #     return None
 
-    def __repr__(self):
+    def __str__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"Recording:  {self.artist_credit_phrase} - {self.title}{s_date} [{self.id}] " + (
+        return f"'{self.artist_credit_phrase}' - '{self.title}'{s_date} [{self.id}] " + (
             "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
+
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
+        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s_date} \[[link={self.url}]{self.id}[/link]\] " + (
+            "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
     def __eq__(self, other):
         if isinstance(other, Recording):
@@ -914,7 +935,7 @@ class Recording(MusicBrainzObject):
         else:
             return True
 
-    @property
+    @cached_property
     def url(self) -> str:
         return f"https://musicbrainz.org/recording/{self.id}"
 
@@ -948,15 +969,17 @@ class Medium(MusicBrainzObject):
         from .object_cache import get_track
         return [get_track(t) for t in self._track_ids]
 
-    def __repr__(self):
+    def __str__(self):
         return (
-                f"Medium: {self.release.artist_credit_phrase} - {self.release.title}"
-                + (f" - {self.title}" if self.title else "")
+                f"'{self.release.artist_credit_phrase}' - '{self.release.title}'"
+                + (f" - '{self.title}'" if self.title else "")
         )
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        return (
+                f"'{escape(self.release.artist_credit_phrase)}' - '{escape(self.release.title)}'"
+                + (f" - '{escape(self.title)}'" if self.title else "")
+        )
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1015,12 +1038,11 @@ class Track(MusicBrainzObject):
             else:
                 return self.release < other.release
 
-    def __repr__(self):
-        return f"Track {self.position}/{self.medium.track_count} of {self.release.artist_credit_phrase} - {self.release.title} / {self.recording.artist_credit_phrase} - {self.recording.title}"
+    def __str__(self):
+        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'"
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        return f"{self.position}/{self.medium.track_count} of '{escape(self.release.artist_credit_phrase)}' - '{escape(self.release.title)}': '{escape(self.recording.artist_credit_phrase)}' - '{escape(self.recording.title)}'"
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1108,12 +1130,11 @@ class Work(MusicBrainzObject):
             return []
         return results
 
-    def __repr__(self):
-        return f"Work:  {self.title}  [{self.id}]"
+    def __str__(self):
+        return f"{self.title}  [{self.id}]"
 
     def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
+        return f"{escape(self.title)}  \[[link={self.url}]{self.id}[/link]\]"
 
     def __eq__(self, other):
         if isinstance(other, Work):
@@ -1121,7 +1142,7 @@ class Work(MusicBrainzObject):
         else:
             return False
 
-    @property
+    @cached_property
     def url(self) -> str:
         return f"https://musicbrainz.org/work/{self.id}"
 

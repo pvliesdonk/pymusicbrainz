@@ -127,7 +127,7 @@ class SearchType(enum.StrEnum):
 
 
 class PerformanceWorkAttributes(enum.StrEnum):
-    ACAPELLA = "acapella"
+    ACAPPELLA = "acappella"
     COVER = "cover"
     INSTRUMENTAL = "instrumental"
     KARAOKE = "karaoke"

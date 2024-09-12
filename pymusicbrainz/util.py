@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from typing import Sequence, Optional
+from typing import Sequence, Optional, Any
 from urllib.parse import urlencode
 
 import rapidfuzz
@@ -86,21 +86,19 @@ def flatten_title(artist_name="", recording_name="", album_name="") -> str:
 
 
 def string_dif(s1: str, s2: str) -> float:
-    rapidfuzz.fuzz.ratio(s1,s2, processor=rapidfuzz.utils.default_process
-    )
+    rapidfuzz.fuzz.ratio(s1, s2, processor=rapidfuzz.utils.default_process
+                         )
 
 
 _re_live = re.compile(r'(.*) [(\[]live.*?[)\]]', re.IGNORECASE)
 
-def title_is_live(title:str) -> Optional[str]:
 
+def title_is_live(title: str) -> Optional[str]:
     m = _re_live.match(title)
     if m:
         new_title = m.group(1)
         return new_title
     return None
-
-
 
 
 def parse_partial_date(partial_date: mbdata.models.PartialDate) -> datetime.date | None:
@@ -272,3 +270,6 @@ def id_from_string(id: str) -> MBID:
             pass
 
     raise NotFoundError
+
+
+
