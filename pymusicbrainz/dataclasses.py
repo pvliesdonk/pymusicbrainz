@@ -10,25 +10,24 @@ import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
 
-
 from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleRecordingReleaseGroupCombination
 
-
 _logger = logging.getLogger(__name__)
+
 
 def escape(s: Any) -> str:
     return re.sub(r'\'', '\\\'', str(s))
+
 
 class MusicBrainzObject(ABC):
     """Abstract object representing any of the primary Musicbrainz entities"""
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.__str__()})"
-
 
 
 class Artist(MusicBrainzObject):
@@ -58,7 +57,6 @@ class Artist(MusicBrainzObject):
             self.sort_name: str = a.sort_name
             self.disambiguation: str = a.comment
 
-
     @cached_property
     def aliases(self) -> list[str]:
         with get_db_session() as session:
@@ -68,7 +66,7 @@ class Artist(MusicBrainzObject):
             return out
 
     @cached_property
-    def country(self) -> str|None:
+    def country(self) -> str | None:
         from pymusicbrainz.util import area_to_country
         with get_db_session() as session:
             artist: mbdata.models.Artist = session.get(mbdata.models.Artist, self._db_id)
@@ -77,14 +75,12 @@ class Artist(MusicBrainzObject):
 
             return area_to_country(area)
 
-
-#select *
-# from musicbrainz.area_containment as c
-# left join musicbrainz.area as d on d.id = c.descendant
-# left join musicbrainz.area as p on p.id = c.parent
-# where c.descendant = 5155
-# and p.type = 1
-
+    #select *
+    # from musicbrainz.area_containment as c
+    # left join musicbrainz.area as d on d.id = c.descendant
+    # left join musicbrainz.area as p on p.id = c.parent
+    # where c.descendant = 5155
+    # and p.type = 1
 
     @cached_property
     def url(self) -> str:
@@ -301,12 +297,6 @@ class Artist(MusicBrainzObject):
         else:
             return f"{self.name} [{self.id}]"
 
-    def __rich__(self):
-        if self.disambiguation is not None:
-            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\] ({escape(self.disambiguation)})"
-        else:
-            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\]"
-
     def __eq__(self, other):
         if isinstance(other, Artist):
             return self.id == other.id
@@ -471,20 +461,12 @@ class ReleaseGroup(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
-
     def __str__(self):
         s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
         )
         return f"'{self.artist_credit_phrase}' - '{self.title}'{s1}{s2} [{self.id}]"
-
-    def __rich__(self):
-        s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
-        s2 = (
-            f" {self.first_release_date}" if self.first_release_date is not None else ""
-        )
-        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s1}{s2} \[[link={self.url}]{self.id}[/link]\]"
 
     def __eq__(self, other):
         if isinstance(other, ReleaseGroup):
@@ -654,15 +636,6 @@ class Release(MusicBrainzObject):
         )
         return f"'{self.artist_credit_phrase}' - '{self.title}'{s2}{s1} [{self.id}]"
 
-    def __rich__(self):
-        s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
-              (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
-              )
-        s2 = (
-            f" {self.first_release_date}" if self.first_release_date is not None else ""
-        )
-        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s2}{s1} \[[link={self.url}]{self.id}[/link]\]"
-
     def __eq__(self, other):
         if isinstance(other, Release):
             return self.id == other.id
@@ -771,7 +744,8 @@ class Recording(MusicBrainzObject):
                     where(mbdata.models.LinkAttribute.link == r.link)
                 res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
 
-                [types.append(PerformanceWorkAttributes(att.attribute_type.name)) for att in res2 if PerformanceWorkAttributes(att.attribute_type.name) not in types]
+                [types.append(PerformanceWorkAttributes(att.attribute_type.name)) for att in res2 if
+                 PerformanceWorkAttributes(att.attribute_type.name) not in types]
 
             self.performance_type = types
 
@@ -827,8 +801,6 @@ class Recording(MusicBrainzObject):
         _logger.debug(f"Identified {len(result)} siblings")
         return result
 
-
-
     # @cached_property
     # def streams(self) -> list[str]:
     #     result = []
@@ -878,12 +850,6 @@ class Recording(MusicBrainzObject):
     def __str__(self):
         s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
         return f"'{self.artist_credit_phrase}' - '{self.title}'{s_date} [{self.id}] " + (
-            "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
-
-
-    def __rich__(self):
-        s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"'{escape(self.artist_credit_phrase)}' - '{escape(self.title)}'{s_date} \[[link={self.url}]{self.id}[/link]\] " + (
             "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
 
     def __eq__(self, other):
@@ -975,12 +941,6 @@ class Medium(MusicBrainzObject):
                 + (f" - '{self.title}'" if self.title else "")
         )
 
-    def __rich__(self):
-        return (
-                f"'{escape(self.release.artist_credit_phrase)}' - '{escape(self.release.title)}'"
-                + (f" - '{escape(self.title)}'" if self.title else "")
-        )
-
     def __contains__(self, item):
         if isinstance(item, Artist):
             return any([item in t.artists for t in self.tracks])
@@ -1040,9 +1000,6 @@ class Track(MusicBrainzObject):
 
     def __str__(self):
         return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'"
-
-    def __rich__(self):
-        return f"{self.position}/{self.medium.track_count} of '{escape(self.release.artist_credit_phrase)}' - '{escape(self.release.title)}': '{escape(self.recording.artist_credit_phrase)}' - '{escape(self.recording.title)}'"
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1133,9 +1090,6 @@ class Work(MusicBrainzObject):
     def __str__(self):
         return f"{self.title}  [{self.id}]"
 
-    def __rich__(self):
-        return f"{escape(self.title)}  \[[link={self.url}]{self.id}[/link]\]"
-
     def __eq__(self, other):
         if isinstance(other, Work):
             return self.id == other.id
@@ -1175,7 +1129,8 @@ class MusicbrainzSingleResult:
         self.recording = recording
         if release is None:
             try:
-                self.release, self.track = find_track_release_for_release_group_recording(self.release_group, self.recording)
+                self.release, self.track = find_track_release_for_release_group_recording(self.release_group,
+                                                                                          self.recording)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 raise ex
         elif track is None:
@@ -1195,10 +1150,6 @@ class MusicbrainzSingleResult:
     def __repr__(self):
         return self.track.__repr__()
 
-    def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
-
     def __lt__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
             return self.track < other.track
@@ -1207,22 +1158,22 @@ class MusicbrainzSingleResult:
         if isinstance(other, MusicbrainzSingleResult):
             return self.release_group == other.release_group and self.recording == other.recording
 
-class MusicbrainzListResult(list[MusicbrainzSingleResult]):
 
+class MusicbrainzListResult(list[MusicbrainzSingleResult]):
     pass
 
 
 class MusicbrainzSearchResult:
 
     def __init__(self, live: bool = False):
-        self._dict : dict[SearchType, MusicbrainzListResult] = {}
+        self._dict: dict[SearchType, MusicbrainzListResult] = {}
         self.live = live
 
     def add_result(self, search_type: SearchType, result: MusicbrainzListResult) -> None:
         self._dict[search_type] = result
 
     def get_result(self, search_type: SearchType) -> Optional[MusicbrainzSingleResult]:
-        if search_type in self._dict.keys() and len(self._dict[search_type])>0:
+        if search_type in self._dict.keys() and len(self._dict[search_type]) > 0:
             self._dict[search_type].sort()
             return self._dict[search_type][0]
         return None
@@ -1237,7 +1188,6 @@ class MusicbrainzSearchResult:
     @property
     def canonical(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.CANONICAL)
-
 
     @property
     def studio_album(self) -> Optional[MusicbrainzSingleResult]:
@@ -1259,8 +1209,6 @@ class MusicbrainzSearchResult:
     def soundtrack(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.SOUNDTRACK)
 
-
-
     def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
         for search_type in SearchType:
             r = self.get_result(search_type)
@@ -1270,14 +1218,14 @@ class MusicbrainzSearchResult:
     @cache
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
-        if self.is_empty():								# something exists
+        if self.is_empty():  # something exists
             raise NotFoundError("Result is empty")
 
-        choice = None						
+        choice = None
         if self.canonical is not None:
             choice = SearchType.CANONICAL
 
-        if self.studio_album is not None:						# there may be no canonical
+        if self.studio_album is not None:  # there may be no canonical
             if self.studio_album != self.canonical:
                 choice = SearchType.STUDIO_ALBUM
             # else keep canonical
@@ -1285,7 +1233,7 @@ class MusicbrainzSearchResult:
                 if self.soundtrack < self.studio_album:
                     _logger.debug("Found soundtrack older than studio album")
                     choice = SearchType.SOUNDTRACK
-        elif self.ep is not None:							# there is no album
+        elif self.ep is not None:  # there is no album
             if self.ep != self.canonical:
                 choice = SearchType.EP
             if self.soundtrack is not None:
@@ -1293,14 +1241,14 @@ class MusicbrainzSearchResult:
                     _logger.debug("Found soundtrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
-        elif self.soundtrack is not None:						# there is no ep
+        elif self.soundtrack is not None:  # there is no ep
             if self.soundtrack != self.canonical:
                 choice = SearchType.SOUNDTRACK
             if self.single is not None:
                 if self.single < self.soundtrack:
                     _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
-        
+
         elif choice is None and self.single is not None:
             _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
@@ -1308,7 +1256,7 @@ class MusicbrainzSearchResult:
         elif choice is None and self.all is not None:
             _logger.debug("No other release found, but found something outside my predefined categories")
             choice = SearchType.ALL
-        
+
         # should never get here
         if choice is None:
             raise NotFoundError("Was not able to determine a best result for non-empy result set")
@@ -1320,9 +1268,6 @@ class MusicbrainzSearchResult:
     def __repr__(self):
         return "(Search result) best result:" + self.get_best_result().track.__repr__()
 
-    def __rich__(self):
-        from rich.markup import escape
-        return escape(self.__repr__())
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
     potential_results = []
@@ -1344,4 +1289,3 @@ def find_track_release_for_release_group_recording(rg: ReleaseGroup, recording: 
     if len(potential_results) == 0:
         raise IllegaleRecordingReleaseGroupCombination(f"Release Group {rg} does not contain Recording {recording}")
     return min(potential_results)
-
