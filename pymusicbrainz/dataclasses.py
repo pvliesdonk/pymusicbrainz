@@ -15,6 +15,7 @@ from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, Recordi
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleRecordingReleaseGroupCombination
+from .util import flatten_title
 
 _logger = logging.getLogger(__name__)
 
@@ -64,6 +65,10 @@ class Artist(MusicBrainzObject):
             result = session.scalars(stmt)
             out = [alias.name for alias in result]
             return out
+
+    def is_alias(self, artist) -> bool:
+        y = flatten_title(artist_name=artist)
+        return any([y == flatten_title(artist_name=x) for x in self.aliases])
 
     @cached_property
     def country(self) -> str | None:
@@ -719,6 +724,16 @@ class Recording(MusicBrainzObject):
                 if ra.name not in result:
                     result.append(ra.name)
         return result
+
+    def is_title_alias(self, title) -> bool:
+        y = flatten_title(recording_name=title)
+        return any([y == flatten_title(recording_name=x) for x in self.aliases])
+
+    def is_artist_alias(self, artist) -> bool:
+        if flatten_title(artist_name=artist) == flatten_title(artist_name=self.artist_credit_phrase):
+            return True
+
+        return any([a.is_alias(artist) for a in self.artists])
 
     @cached_property
     def performance_type(self) -> list[PerformanceWorkAttributes]:
