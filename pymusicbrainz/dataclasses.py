@@ -15,7 +15,6 @@ from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, Recordi
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleRecordingReleaseGroupCombination
-from .util import flatten_title
 
 _logger = logging.getLogger(__name__)
 
@@ -67,12 +66,13 @@ class Artist(MusicBrainzObject):
             return out
 
     def is_alias(self, artist) -> bool:
+        from pymusicbrainz.util import flatten_title
         y = flatten_title(artist_name=artist)
         return any([y == flatten_title(artist_name=x) for x in self.aliases])
 
     @cached_property
     def country(self) -> str | None:
-        from pymusicbrainz.util import area_to_country
+        from .util import area_to_country
         with get_db_session() as session:
             artist: mbdata.models.Artist = session.get(mbdata.models.Artist, self._db_id)
             result = None
@@ -726,10 +726,12 @@ class Recording(MusicBrainzObject):
         return result
 
     def is_title_alias(self, title) -> bool:
+        from .util import flatten_title
         y = flatten_title(recording_name=title)
         return any([y == flatten_title(recording_name=x) for x in self.aliases])
 
     def is_artist_alias(self, artist) -> bool:
+        from .util import flatten_title
         if flatten_title(artist_name=artist) == flatten_title(artist_name=self.artist_credit_phrase):
             return True
 
