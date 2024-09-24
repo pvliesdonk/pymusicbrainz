@@ -10,7 +10,7 @@ import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
 
-from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES
+from .constants import PRIMARY_TYPES, SECONDARY_TYPES, INT_COUNTRIES, FAVORITE_COUNTRIES, VA_ARTIST_ID
 from .datatypes import ArtistID, ReleaseType, ReleaseID, ReleaseGroupID, RecordingID, TrackID, \
     WorkID, SecondaryTypeList, SearchType, PerformanceWorkAttributes
 from .db import get_db_session
@@ -1166,6 +1166,7 @@ class MusicbrainzListResult(list[MusicbrainzSingleResult]):
 class MusicbrainzSearchResult:
 
     def __init__(self, live: bool = False):
+        self._best_result_type = None
         self._dict: dict[SearchType, MusicbrainzListResult] = {}
         self.live = live
 
@@ -1253,9 +1254,18 @@ class MusicbrainzSearchResult:
             _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
 
+        elif (
+                choice is SearchType.CANONICAL and VA_ARTIST_ID in self.canonical.release_group.artists) and self.single is not None:
+            _logger.debug("Using single instead of VA canonical release")
+            choice = SearchType.SINGLE
+
         elif choice is None and self.all is not None:
             _logger.debug("No other release found, but found something outside my predefined categories")
             choice = SearchType.ALL
+
+        elif (
+                choice is SearchType.CANONICAL and VA_ARTIST_ID in self.canonical.release_group.artists) and self.all is not None:
+            _logger.debug("Using something weird instead of VA canonical release")
 
         # should never get here
         if choice is None:
@@ -1263,10 +1273,20 @@ class MusicbrainzSearchResult:
         else:
             _logger.debug(f"Best Musicbrainz result is of type {str(choice)}")
 
+        self._best_result_type = choice
         return self.get_result(choice)
 
+    @cached_property
+    def best_result(self) -> MusicbrainzSingleResult:
+        return self.get_best_result()
+
+    @cached_property
+    def best_result_type(self) -> SearchType:
+        self.get_best_result()
+        return self._best_result_type
+
     def __repr__(self):
-        return "(Search result) best result:" + self.get_best_result().track.__repr__()
+        return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
 
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
