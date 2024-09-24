@@ -1285,6 +1285,9 @@ class MusicbrainzSearchResult:
         self.get_best_result()
         return self._best_result_type
 
+    def is_best_result_type(self, searchtype: SearchType) -> bool:
+        return self.best_result_type == searchtype
+
     def __repr__(self):
         return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
 
