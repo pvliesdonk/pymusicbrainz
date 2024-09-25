@@ -213,7 +213,7 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
             return RecordingID(str(res))
 
 
-_uuid_match = re.compile(r'[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}')
+_uuid_match = re.compile(r'[a-z0-9]{8}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{12}')
 _url_match = re.compile(
     r'https?://.+?/(\w+)/([a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12})')
 
