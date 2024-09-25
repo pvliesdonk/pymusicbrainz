@@ -30,6 +30,8 @@ pymusicbrainz.save_hints()
 
 hint = pymusicbrainz.find_hint_recording("Flopdwork","Vlobbert")
 fsdlkjls = pymusicbrainz.search_song("Flopdwork","Vlobbert")
+askjdas = fsdlkjls.get_best_result()
+
 
 
 seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")

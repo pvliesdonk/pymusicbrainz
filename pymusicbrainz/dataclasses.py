@@ -712,6 +712,16 @@ class Recording(MusicBrainzObject):
             self.first_release_date: datetime.date = parse_partial_date(
                 rec.first_release.date) if rec.first_release is not None else None
 
+
+    # positive: other is newer, negative: self is newer
+    def is_years_older_than(self, other: "Recording") -> Optional[int]:
+        if self.first_release_date is None or other.first_release_date is None:
+            return None
+        delta = other.first_release_date - self.first_release_date
+        years = delta.days + 1 if delta.days < 0 else delta.days
+        _logger.debug(f"{self} is {years} years older than {other}")
+        return years + 1 if years < 0 else years
+
     @cached_property
     def aliases(self) -> list[str]:
         result = [self.title]
@@ -1008,6 +1018,9 @@ class Track(MusicBrainzObject):
     def release(self) -> Release:
         return self.medium.release
 
+    def is_years_older_than(self, other: "Track") -> Optional[int]:
+        return self.recording.is_years_older_than(other.recording)
+
     def __lt__(self, other):
         if isinstance(other, Track):
             if self.release == other.release:
@@ -1164,6 +1177,9 @@ class MusicbrainzSingleResult:
             _logger.warning(f"Git a strange combination of {self.release} with {self.release_group}. Fixing.")
             self.release_group = self.release.release_group
 
+    def is_years_older_than(self, other: "MusicbrainzSingleResult") -> Optional[int]:
+        return self.recording.is_years_older_than(other.recording)
+
     def __repr__(self):
         return self.track.__repr__()
 
@@ -1233,7 +1249,7 @@ class MusicbrainzSearchResult:
             if r is not None:
                 yield search_type, r
 
-    @cache
+    #cache
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
         if self.is_empty():  # something exists
@@ -1255,7 +1271,7 @@ class MusicbrainzSearchResult:
             if self.ep != self.canonical:
                 choice = SearchType.EP
             if self.soundtrack is not None:
-                if self.soundtrack < self.ep:
+                if self.soundtrack.is_years_older_than(self.ep) > 2:
                     _logger.debug("Found soundtrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
@@ -1263,7 +1279,7 @@ class MusicbrainzSearchResult:
             if self.soundtrack != self.canonical:
                 choice = SearchType.SOUNDTRACK
             if self.single is not None:
-                if self.single < self.soundtrack:
+                if self.single.is_years_older_than(self.soundtrack) > 2:
                     _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
 
@@ -1293,11 +1309,11 @@ class MusicbrainzSearchResult:
         self._best_result_type = choice
         return self.get_result(choice)
 
-    @cached_property
+    #@cached_property
     def best_result(self) -> MusicbrainzSingleResult:
         return self.get_best_result()
 
-    @cached_property
+    #@cached_property
     def best_result_type(self) -> SearchType:
         self.get_best_result()
         return self._best_result_type
