@@ -15,9 +15,22 @@ logging.getLogger('urllib3').setLevel(logging.ERROR)
 logging.info(f"Configuring database at {DB_URI}")
 pymusicbrainz.configure_database(db_url=DB_URI)
 
+
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 pymusicbrainz.configure_object_cache(pathlib.Path("object_cache.db"))
+
+pymusicbrainz.configure_hintfile(pathlib.Path("hints.json"))
+pymusicbrainz.add_artist_name_hint("AEDM", "Acda en de Munnik")
+pymusicbrainz.add_title_name_hint("Test_title", "test title")
+pymusicbrainz.add_recording_name_hint("alpha", "beta", "gamma", "delta")
+pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobbert", recording_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
+
+pymusicbrainz.save_hints()
+
+hint = pymusicbrainz.find_hint_recording("Flopdwork","Vlobbert")
+fsdlkjls = pymusicbrainz.search_song("Flopdwork","Vlobbert")
+
 
 seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")

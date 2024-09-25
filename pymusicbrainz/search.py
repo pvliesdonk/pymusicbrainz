@@ -6,6 +6,7 @@ from typing import Sequence, Optional
 import acoustid
 import musicbrainzngs
 
+from . import find_hint_recording
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
@@ -431,13 +432,6 @@ def search_song(
         additional_seed_ids: Sequence[RecordingID] = None,
         fallback_to_all: bool = False,
         cut_off: int = None) -> Optional[MusicbrainzSearchResult]:
-    """Main search function
-
-    :param artist_query: Artist name
-    :param title_query: Recording name / Title
-    :param cut_off:
-    :return:
-    """
     if artist_query is None and title_query is None:
         if seed_id is None:
             raise IllegalArgumentError("Either provide artist_query and title_query, or a seed_id")
@@ -445,6 +439,12 @@ def search_song(
         _logger.warning("Reading artist_query and title_query from seed recording id")
         artist_query = seed_recording.artist_credit_phrase
         title_query = seed_recording.title
+
+    hint = find_hint_recording(artist_query=artist_query, title_query=title_query)
+    artist_query = hint["artist"]
+    title_query = hint["title"]
+    if "recording_id" in hint.keys():
+        seed_recording = get_recording(hint["recording_id"])
 
     if cut_off is None:
         cut_off = 90
