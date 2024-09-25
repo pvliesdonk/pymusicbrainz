@@ -1249,7 +1249,7 @@ class MusicbrainzSearchResult:
             if r is not None:
                 yield search_type, r
 
-    #cache
+    @cache
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
         if self.is_empty():  # something exists
@@ -1309,11 +1309,11 @@ class MusicbrainzSearchResult:
         self._best_result_type = choice
         return self.get_result(choice)
 
-    #@cached_property
+    @cached_property
     def best_result(self) -> MusicbrainzSingleResult:
         return self.get_best_result()
 
-    #@cached_property
+    @cached_property
     def best_result_type(self) -> SearchType:
         self.get_best_result()
         return self._best_result_type
