@@ -118,7 +118,7 @@ def save_hints() -> None:
             {"type": "recording_name", "match_artist": key[0], "match_title": key[1], "new_artist": hint[0],
              "new_title": hint[1]})
 
-    for key, hint in _artist_id_hints.items():
+    for key, hint in _recording_id_hints.items():
         all_hints.append(
             {"type": "recording_id", "match_artist": key[0], "match_title": key[1], "new_recording_id": str(hint)})
 
