@@ -91,6 +91,7 @@ def string_dif(s1: str, s2: str) -> float:
 
 
 _re_live = re.compile(r'(.*) [(\[]live.*?[)\]]', re.IGNORECASE)
+_re_unplugged = re.compile(r'(.*) [(\[]unplugged.*?[)\]]', re.IGNORECASE)
 
 
 def title_is_live(title: str) -> Optional[str]:
@@ -98,6 +99,8 @@ def title_is_live(title: str) -> Optional[str]:
     if m:
         new_title = m.group(1)
         return new_title
+    if _re_unplugged.match(title):
+        return title
     return None
 
 
@@ -270,6 +273,3 @@ def id_from_string(id: str) -> MBID:
             pass
 
     raise NotFoundError
-
-
-

@@ -35,9 +35,10 @@ seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 eq = (seed == seed2)
 
-rec = pymusicbrainz.get_recording(seed)
+rec = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("49d5edae4f854b40bb3030b4f71dbbae"))
 rgs = rec.release_groups
 album = rec.studio_albums
+album2 = rec.live_albums
 res = MusicbrainzSearchResult.result_from_recording(rec)
 
 
@@ -45,7 +46,7 @@ hint = pymusicbrainz.find_hint_recording("Flopdwork","Vlobbert")
 fsdlkjls = pymusicbrainz.search_song("Flopdwork","Vlobbert")
 askjdas = fsdlkjls.get_best_result()
 
-
+lsdkjfsdlk = pymusicbrainz.search_song("Status Quo",	"Roll Over Lay Down (live)")
 
 
 sfdgdsfg = pymusicbrainz.search_song(seed_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))

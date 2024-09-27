@@ -173,6 +173,7 @@ def _search_release_group_by_recording_ids(
         recording_ids: RecordingID | Sequence[RecordingID],
         search_type: SearchType,
         use_siblings: bool = True,
+        live: bool = False,
         cut_off: int = None
 ) -> Optional[MusicbrainzListResult]:
     if cut_off is None:
@@ -227,8 +228,17 @@ def _search_release_group_by_recording_ids(
                     if single_result not in found_rgs:
                         #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
                         found_rgs.append(single_result)
+        if search_type == SearchType.STUDIO_ALBUM and live:
+            _logger.debug("Searching for a live song: adding live albums in album search")
+            for rg in getattr(artist, "live_albums"):
+                for recording in recordings:
+                    if recording in rg:
+                        single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
+                        if single_result not in found_rgs:
+                            # _logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
+                            found_rgs.append(single_result)
 
-    found_rgs.sort()
+    found_rgs.sort(live=live)
     if len(found_rgs) > 0:
         _logger.info(f"Found {found_rgs[0].track} for searchtype {search_type}")
         return found_rgs
@@ -306,6 +316,7 @@ def search_by_recording(
         recordings: Recording | Sequence[Recording],
         use_siblings: bool = True,
         cut_off: int = None,
+        live: bool = False,
         fallback_to_all: bool = False) -> MusicbrainzSearchResult:
     if isinstance(recordings, Recording):
         recordings = [recordings]
@@ -315,6 +326,7 @@ def search_by_recording(
         recording_ids=recording_ids,
         use_siblings=use_siblings,
         cut_off=cut_off,
+        live=live,
         fallback_to_all=fallback_to_all)
 
 
@@ -322,10 +334,11 @@ def search_by_recording_id(
         recording_ids: RecordingID | Sequence[RecordingID],
         use_siblings: bool = True,
         cut_off: int = None,
+        live: bool = False,
         fallback_to_all: bool = False
 
 ) -> MusicbrainzSearchResult:
-    results: MusicbrainzSearchResult = MusicbrainzSearchResult()
+    results: MusicbrainzSearchResult = MusicbrainzSearchResult(live=live)
     for search_type in SearchType:
         if search_type in [SearchType.CANONICAL, SearchType.ALL]:
             continue
@@ -333,6 +346,7 @@ def search_by_recording_id(
             recording_ids=recording_ids,
             search_type=SearchType(search_type),
             use_siblings=use_siblings,
+            live=live,
             cut_off=cut_off)
         if res is not None:
             results.add_result(search_type, res)
@@ -538,8 +552,8 @@ def search_song(
     _logger.debug(f"Found {len(candidates_normal)} normal performances and {len(candidates_other)} other performances")
 
     _logger.info(f"Step 6. Determining best releases")
-    result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, fallback_to_all=fallback_to_all)
-    result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, fallback_to_all=fallback_to_all)
+    result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, live=(live_title is not None), fallback_to_all=fallback_to_all)
+    result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, live=(live_title is not None), fallback_to_all=fallback_to_all)
 
     if result_normal.is_empty():
         result = result_other

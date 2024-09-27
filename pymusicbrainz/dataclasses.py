@@ -265,9 +265,22 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def studio_album_ids(self) -> list["ReleaseGroupID"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
+
+    @cached_property
+    def live_albums(self) -> list["ReleaseGroup"]:
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.LIVE]), credited=True,
+                                       contributing=False)
+
+    @cached_property
+    def live_album_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.LIVE]), credited=True,
+                                       contributing=False)
+
 
     @cached_property
     def soundtracks(self) -> list["ReleaseGroup"]:
@@ -367,6 +380,11 @@ class ReleaseGroup(MusicBrainzObject):
     @cached_property
     def is_studio_album(self) -> bool:
         return self.primary_type == ReleaseType.ALBUM and len(self.types) == 1
+
+    @cached_property
+    def is_live_album(self) -> bool:
+        return self.primary_type == ReleaseType.ALBUM and len(self.types) == 2 and ReleaseType.LIVE in self.types
+
 
     @cached_property
     def is_single(self) -> bool:
@@ -780,7 +798,7 @@ class Recording(MusicBrainzObject):
 
     @cached_property
     def is_acapella(self) -> bool:
-        return PerformanceWorkAttributes.ACAPELLA in self.performance_type
+        return PerformanceWorkAttributes.ACAPPELLA in self.performance_type
 
     @cached_property
     def is_live(self) -> bool:
@@ -847,6 +865,10 @@ class Recording(MusicBrainzObject):
     @cached_property
     def studio_albums(self) -> list[ReleaseGroup]:
         return [rg for rg in self.release_groups if rg.is_studio_album and not rg.is_va]
+
+    @cached_property
+    def live_albums(self) -> list[ReleaseGroup]:
+        return [rg for rg in self.release_groups if rg.is_live_album and not rg.is_va]
 
     @cached_property
     def singles(self) -> list[ReleaseGroup]:
@@ -1226,8 +1248,11 @@ class MusicbrainzSingleResult:
 
 
 class MusicbrainzListResult(list[MusicbrainzSingleResult]):
-    pass
-
+    def sort(self, *, key = None, reverse = False, live:bool = False):
+        if live:
+            super().sort(key=lambda x: (x.recording.is_live, x))
+        else:
+            super().sort()
 
 class MusicbrainzSearchResult:
 
@@ -1241,7 +1266,7 @@ class MusicbrainzSearchResult:
 
     def get_result(self, search_type: SearchType) -> Optional[MusicbrainzSingleResult]:
         if search_type in self._dict.keys() and len(self._dict[search_type]) > 0:
-            self._dict[search_type].sort()
+            self._dict[search_type].sort(live=self.live)
             return self._dict[search_type][0]
         return None
 
@@ -1365,30 +1390,25 @@ class MusicbrainzSearchResult:
         canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title)
         result.add_result(search_type=SearchType.CANONICAL, result=canonical_result)
 
-        if len(recording.studio_albums) > 0:
-            if len(recording.studio_albums) > 1:
-                _logger.warning(f"Multiple potential studio albums found. Pick first one in list")
-            album_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.studio_albums])
+        if recording.is_live:
+            album_options = recording.studio_albums + recording.live_albums
+        else:
+            album_options = recording.studio_albums
+        if len(album_options) > 0:
+            album_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in album_options])
             result.add_result(search_type=SearchType.STUDIO_ALBUM, result=album_result)
 
         if len(recording.soundtracks) > 0:
-            if len(recording.soundtracks) > 1:
-                _logger.warning(f"Multiple potential soundtracks found. Pick first one in list")
             soundtrack_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.soundtracks])
             result.add_result(search_type=SearchType.SOUNDTRACK, result=soundtrack_result)
 
         if len(recording.eps) > 0:
-            if len(recording.eps) > 1:
-                _logger.warning(f"Multiple potential eps found. Pick first one in list")
             ep_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.eps])
             result.add_result(search_type=SearchType.EP, result=ep_result)
 
         if len(recording.singles) > 0:
-            if len(recording.singles) > 1:
-                _logger.warning(f"Multiple potential singles found. Pick first one in list")
             single_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.singles])
             result.add_result(search_type=SearchType.SINGLE, result=single_result)
-
 
         return result
 
