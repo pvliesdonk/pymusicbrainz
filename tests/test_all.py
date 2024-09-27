@@ -3,6 +3,7 @@ import pathlib
 
 
 from context import pymusicbrainz
+from pymusicbrainz import MusicbrainzSearchResult
 from pymusicbrainz.datatypes import ReleaseType
 
 DB_URI: str = "postgresql://musicbrainz:musicbrainz@musicbrainz.int.liesdonk.nl/musicbrainz_db"
@@ -26,7 +27,19 @@ pymusicbrainz.add_title_name_hint("Test_title", "test title")
 pymusicbrainz.add_recording_name_hint("alpha", "beta", "gamma", "delta")
 pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobbert", recording_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 
+
+
 pymusicbrainz.save_hints()
+
+seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
+seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
+eq = (seed == seed2)
+
+rec = pymusicbrainz.get_recording(seed)
+rgs = rec.release_groups
+album = rec.studio_albums
+res = MusicbrainzSearchResult.result_from_recording(rec)
+
 
 hint = pymusicbrainz.find_hint_recording("Flopdwork","Vlobbert")
 fsdlkjls = pymusicbrainz.search_song("Flopdwork","Vlobbert")
@@ -34,9 +47,6 @@ askjdas = fsdlkjls.get_best_result()
 
 
 
-seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
-seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
-eq = (seed == seed2)
 
 sfdgdsfg = pymusicbrainz.search_song(seed_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 

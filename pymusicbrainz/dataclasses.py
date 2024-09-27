@@ -828,6 +828,39 @@ class Recording(MusicBrainzObject):
         _logger.debug(f"Identified {len(result)} siblings")
         return result
 
+    @cached_property
+    def release_groups(self) -> list[ReleaseGroup]:
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.ReleaseGroup).distinct()
+                .join(mbdata.models.Release)
+                .join(mbdata.models.Medium)
+                .join(mbdata.models.Track)
+                .where(mbdata.models.Track.recording_id == self._db_id)
+            )
+            db_result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt)
+
+            from pymusicbrainz import get_release_group
+            result = [get_release_group(rg) for rg in db_result]
+        return result
+
+    @cached_property
+    def studio_albums(self) -> list[ReleaseGroup]:
+        return [rg for rg in self.release_groups if rg.is_studio_album and not rg.is_va]
+
+    @cached_property
+    def singles(self) -> list[ReleaseGroup]:
+        return [rg for rg in self.release_groups if rg.is_single]
+
+    @cached_property
+    def eps(self) -> list[ReleaseGroup]:
+        return [rg for rg in self.release_groups if rg.is_eps]
+
+    @cached_property
+    def soundtracks(self) -> list[ReleaseGroup]:
+        return [rg for rg in self.release_groups if rg.is_soundtrack]
+
+
     # @cached_property
     # def streams(self) -> list[str]:
     #     result = []
@@ -1249,7 +1282,6 @@ class MusicbrainzSearchResult:
             if r is not None:
                 yield search_type, r
 
-    @cache
     def get_best_result(self) -> Optional[MusicbrainzSingleResult]:
 
         if self.is_empty():  # something exists
@@ -1309,11 +1341,11 @@ class MusicbrainzSearchResult:
         self._best_result_type = choice
         return self.get_result(choice)
 
-    @cached_property
+    @property
     def best_result(self) -> MusicbrainzSingleResult:
         return self.get_best_result()
 
-    @cached_property
+    @property
     def best_result_type(self) -> SearchType:
         self.get_best_result()
         return self._best_result_type
@@ -1324,6 +1356,41 @@ class MusicbrainzSearchResult:
     def __repr__(self):
         return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
 
+    @classmethod
+    def result_from_recording(cls, recording: Recording) -> "MusicbrainzSearchResult":
+        from pymusicbrainz import search_song_canonical
+
+        result = MusicbrainzSearchResult()
+
+        canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title)
+        result.add_result(search_type=SearchType.CANONICAL, result=canonical_result)
+
+        if len(recording.studio_albums) > 0:
+            if len(recording.studio_albums) > 1:
+                _logger.warning(f"Multiple potential studio albums found. Pick first one in list")
+            album_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.studio_albums])
+            result.add_result(search_type=SearchType.STUDIO_ALBUM, result=album_result)
+
+        if len(recording.soundtracks) > 0:
+            if len(recording.soundtracks) > 1:
+                _logger.warning(f"Multiple potential soundtracks found. Pick first one in list")
+            soundtrack_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.soundtracks])
+            result.add_result(search_type=SearchType.SOUNDTRACK, result=soundtrack_result)
+
+        if len(recording.eps) > 0:
+            if len(recording.eps) > 1:
+                _logger.warning(f"Multiple potential eps found. Pick first one in list")
+            ep_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.eps])
+            result.add_result(search_type=SearchType.EP, result=ep_result)
+
+        if len(recording.singles) > 0:
+            if len(recording.singles) > 1:
+                _logger.warning(f"Multiple potential singles found. Pick first one in list")
+            single_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.singles])
+            result.add_result(search_type=SearchType.SINGLE, result=single_result)
+
+
+        return result
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
     potential_results = []
