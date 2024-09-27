@@ -143,6 +143,7 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
 def search_song_canonical(
         artist_query: str,
         title_query: str,
+        live: bool = False
 ) -> Optional[MusicbrainzListResult]:
     """Search for a recording in the list of canonical releases
 
@@ -162,7 +163,7 @@ def search_song_canonical(
             except IllegaleRecordingReleaseGroupCombination as ex:
                 _logger.error(ex)
                 _logger.error("Could not match canonical result to database. Likely due to updated references.")
-        result.sort()
+        result.sort(live=live)
         return result
     else:
         _logger.info(f"No canonical release found for '{artist_query}' - '{title_query}' ")
@@ -469,10 +470,10 @@ def search_song(
 
     # First find a canonical result:
     _logger.info(f"Step 1. performing canonical search on '{artist_query}' - '{title_query}'")
-    canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query)
+    canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query, live=(live_title is not None))
     if not canonical and live_title:
         _logger.info(f"Step 1b. retry canonical search for live title on '{artist_query}' - '{live_title}'")
-        canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title)
+        canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title, live=True)
 
     if canonical:
         _logger.info(f"Found canonical release: {canonical[0].track}")
@@ -569,7 +570,8 @@ def search_song(
         v: MusicbrainzSingleResult
         for k, v in result.iterate_results():
             canonical = search_song_canonical(artist_query=v.recording.artist_credit_phrase,
-                                              title_query=v.recording.title)
+                                              title_query=v.recording.title,
+                                              live=v.recording.is_live)
             if canonical is not None:
                 _logger.debug(f"Found canonical result via search for {k.name}")
                 result.add_result(SearchType.CANONICAL, canonical)

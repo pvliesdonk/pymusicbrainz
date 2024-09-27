@@ -1385,9 +1385,9 @@ class MusicbrainzSearchResult:
     def result_from_recording(cls, recording: Recording) -> "MusicbrainzSearchResult":
         from pymusicbrainz import search_song_canonical
 
-        result = MusicbrainzSearchResult()
+        result = MusicbrainzSearchResult(live=recording.is_live)
 
-        canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title)
+        canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title, live=recording.is_live)
         result.add_result(search_type=SearchType.CANONICAL, result=canonical_result)
 
         if recording.is_live:
