@@ -19,7 +19,7 @@ pymusicbrainz.configure_database(db_url=DB_URI)
 
 pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
-pymusicbrainz.configure_object_cache(pathlib.Path("object_cache.db"))
+#pymusicbrainz.configure_object_cache(pathlib.Path("object_cache.db"))
 
 pymusicbrainz.configure_hintfile(pathlib.Path("hints.json"))
 pymusicbrainz.add_artist_name_hint("AEDM", "Acda en de Munnik")
@@ -40,6 +40,8 @@ rgs = rec.release_groups
 album = rec.studio_albums
 album2 = rec.live_albums
 res = MusicbrainzSearchResult.result_from_recording(rec)
+
+boneym = pymusicbrainz.search_song("Boney M", "Sunny")
 
 
 hint = pymusicbrainz.find_hint_recording("Flopdwork","Vlobbert")

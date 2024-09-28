@@ -555,6 +555,7 @@ class Release(MusicBrainzObject):
             self.first_release_date: datetime.date = parse_partial_date(
                 rel.first_release.date) if rel.first_release is not None else None
             self.countries: list[str] = [area_to_country(c.country.area) for c in rel.country_dates]
+            self.script: str = rel.script.name if rel.script is not None else None
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -631,6 +632,12 @@ class Release(MusicBrainzObject):
     def recording_ids(self) -> list["RecordingID"]:
         return [RecordingID(str(recording.gid)) for recording in self._recordings_db_items]
 
+    def is_latin(self) -> bool:
+        if self.script is None:
+            #_logger.debug("No known script, assuming Latin")
+            return True
+        return self.script == "Latin"
+
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         from .util import flatten_title
         artist_ratio = rapidfuzz.fuzz.WRatio(
@@ -681,6 +688,11 @@ class Release(MusicBrainzObject):
 
     def __lt__(self, other):
         if isinstance(other, Release):
+            #deprioritize latin
+            if self.is_latin() and not other.is_latin():
+                return True
+            elif other.is_latin() and not self.is_latin():
+                return False
 
             if self.first_release_date is not None:
                 if other.first_release_date is not None:

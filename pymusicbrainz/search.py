@@ -10,7 +10,7 @@ from . import find_hint_recording
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
-from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType
+from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType, PerformanceWorkAttributes
 from .exceptions import MBApiError, IllegalArgumentError, IllegaleRecordingReleaseGroupCombination
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup
@@ -78,9 +78,9 @@ def search_song_musicbrainz(
                 recording = get_recording(recording_redirect(rid))
                 if recording.is_sane(artist_query, title_query):
                     result.append((recording, score))
-                if len(result) > limit:
-                    _logger.warning(f"Reach maximum of {limit} result")
-                    break
+                #if len(result) > limit:
+                #    _logger.warning(f"Reach maximum of {limit} result")
+                #    break
             except MBApiError as ex:
                 _logger.warning(f"Could not get recording {str(rid)}")
 
@@ -158,7 +158,8 @@ def search_song_canonical(
         result: MusicbrainzListResult = MusicbrainzListResult()
         for hit in canonical_hits:
             try:
-                r = MusicbrainzSingleResult(release=hit['release'], release_group=hit['release_group'], recording=hit['recording'])
+                r = MusicbrainzSingleResult(release=hit['release'], release_group=hit['release_group'],
+                                            recording=hit['recording'])
                 result.append(r)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 _logger.error(ex)
@@ -186,9 +187,6 @@ def _search_release_group_by_recording_ids(
     else:
         recordings = [get_recording(x) for x in recording_ids]
 
-    # check whether there are normal performances on board. Kill the others
-    if any([r.is_normal_performance for r in recordings]):
-        recordings = [r for r in recordings if r.is_normal_performance]
 
     # also search for recording siblings
     if use_siblings:
@@ -198,6 +196,8 @@ def _search_release_group_by_recording_ids(
                 if sibling not in new_recordings:
                     new_recordings.append(sibling)
         recordings = new_recordings
+
+    recordings.sort()
 
     match search_type:
         case SearchType.CANONICAL:
@@ -470,10 +470,12 @@ def search_song(
 
     # First find a canonical result:
     _logger.info(f"Step 1. performing canonical search on '{artist_query}' - '{title_query}'")
-    canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query, live=(live_title is not None))
+    canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query,
+                                                             live=(live_title is not None))
     if not canonical and live_title:
         _logger.info(f"Step 1b. retry canonical search for live title on '{artist_query}' - '{live_title}'")
-        canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title, live=True)
+        canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title,
+                                                                 live=True)
 
     if canonical:
         _logger.info(f"Found canonical release: {canonical[0].track}")
@@ -496,7 +498,8 @@ def search_song(
     if len(songs_found_mb) == 0 and live_title:
         _logger.info(f"Step 3a. performing a search query on Musicbrainz API for live release")
         songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=live_title,
-                                                                  cut_off=cut_off, strict=True, secondary_type=ReleaseType.LIVE)
+                                                                  cut_off=cut_off, strict=True,
+                                                                  secondary_type=ReleaseType.LIVE)
 
     if len(songs_found_mb) == 0:
         _logger.info(f"Step 3b. performing a less restrictive search query on Musicbrainz API")
@@ -548,18 +551,37 @@ def search_song(
             candidates = [seed_recording] + candidates
 
     _logger.info(f"Step 5. normalizing results")
-    candidates_normal = [c for c in candidates if c.is_normal_performance]
-    candidates_other = [c for c in candidates if not c.is_normal_performance]
-    _logger.debug(f"Found {len(candidates_normal)} normal performances and {len(candidates_other)} other performances")
 
-    _logger.info(f"Step 6. Determining best releases")
-    result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, live=(live_title is not None), fallback_to_all=fallback_to_all)
-    result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, live=(live_title is not None), fallback_to_all=fallback_to_all)
+    candidates.sort()
 
-    if result_normal.is_empty():
-        result = result_other
+    reasons = set([r for c in candidates for r in c.performance_type])
+    if PerformanceWorkAttributes.COVER in reasons and len(reasons) == 1:
+        _logger.info("Assuming this work is a cover")
+        do_all = True
     else:
-        result = result_normal
+        do_all = False
+
+    if do_all:
+        result: MusicbrainzSearchResult = search_by_recording(candidates, live=(live_title is not None),
+                                                              fallback_to_all=fallback_to_all)
+
+    else:
+        candidates_normal = [c for c in candidates if c.is_normal_performance]
+        candidates_other = [c for c in candidates if not c.is_normal_performance]
+
+        _logger.debug(
+            f"Found {len(candidates_normal)} normal performances and {len(candidates_other)} other performances")
+
+        _logger.info(f"Step 6. Determining best releases")
+        result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, live=(live_title is not None),
+                                                                     fallback_to_all=fallback_to_all)
+        result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, live=(live_title is not None),
+                                                                    fallback_to_all=fallback_to_all)
+
+        if result_normal.is_empty():
+            result = result_other
+        else:
+            result = result_normal
 
     if canonical is not None:
         result.add_result(SearchType.CANONICAL, canonical)
