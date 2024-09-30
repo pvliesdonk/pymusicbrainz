@@ -587,6 +587,14 @@ class Release(MusicBrainzObject):
     def is_favorite_country(self) -> bool:
         return any([c in self.countries for c in FAVORITE_COUNTRIES])
 
+    def is_years_older_than(self, other: "Release") -> Optional[int]:
+        if self.first_release_date is None or other.first_release_date is None:
+            return None
+        delta = other.first_release_date - self.first_release_date
+        years = delta.days + 1 if delta.days < 0 else delta.days
+        _logger.debug(f"{self} is {years} years older than {other}")
+        return years + 1 if years < 0 else years
+
     @cached_property
     def release_group(self) -> ReleaseGroup:
         from .object_cache import get_release_group
@@ -693,6 +701,10 @@ class Release(MusicBrainzObject):
                 return True
             elif other.is_latin() and not self.is_latin():
                 return False
+
+            diff = self.is_years_older_than(other)
+            if diff is not None:
+                return diff > 2
 
             if self.first_release_date is not None:
                 if other.first_release_date is not None:
@@ -954,7 +966,9 @@ class Recording(MusicBrainzObject):
 
     def __lt__(self, other):
         if isinstance(other, Recording):
-
+            diff = self.is_years_older_than(other)
+            if diff is not None:
+                return diff > 2
             if self.first_release_date is not None:
                 if other.first_release_date is not None:
                     return self.first_release_date < other.first_release_date
@@ -1252,7 +1266,10 @@ class MusicbrainzSingleResult:
 
     def __lt__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
-            return self.track < other.track
+            if self.release_group == other.release_group:
+                return self.track < other.track
+            else:
+                return self.release_group < other.release_group
 
     def __eq__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
@@ -1340,7 +1357,7 @@ class MusicbrainzSearchResult:
             if self.ep != self.canonical:
                 choice = SearchType.EP
             if self.soundtrack is not None:
-                if self.soundtrack.is_years_older_than(self.ep) > 2:
+                if self.soundtrack < self.ep:
                     _logger.debug("Found soundtrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
@@ -1348,7 +1365,7 @@ class MusicbrainzSearchResult:
             if self.soundtrack != self.canonical:
                 choice = SearchType.SOUNDTRACK
             if self.single is not None:
-                if self.single.is_years_older_than(self.soundtrack) > 2:
+                if self.single < self.soundtrack:
                     _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
 
