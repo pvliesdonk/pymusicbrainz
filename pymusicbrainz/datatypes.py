@@ -1,10 +1,9 @@
 import enum
 import logging
-import re
 import uuid
 
 _logger = logging.getLogger(__name__)
-_uuid_match = re.compile(r'[a-z0-9]{8}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{12}')
+
 
 class MBID:
     """Abstract representation of a Musicbrainz Identifier"""
@@ -12,10 +11,7 @@ class MBID:
     def __init__(self, mbid: str | uuid.UUID):
 
         if isinstance(mbid, str):
-            if _uuid_match.match(mbid):
-                self.mbid: uuid.UUID = uuid.UUID(mbid)
-            else:
-                self.mbid: uuid.UUID = uuid.UUID(mbid)
+            self.mbid: uuid.UUID = uuid.UUID(mbid)
 
         elif isinstance(mbid, uuid.UUID):
             self.mbid = mbid
