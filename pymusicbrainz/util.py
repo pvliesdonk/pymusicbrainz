@@ -90,8 +90,9 @@ def string_dif(s1: str, s2: str) -> float:
                          )
 
 
-_re_live = re.compile(r'(.*) [(\[]live.*?[)\]]', re.IGNORECASE)
-_re_unplugged = re.compile(r'(.*) [(\[]unplugged.*?[)\]]', re.IGNORECASE)
+_re_live = re.compile(r'(.*) [(\[]live.*?[)\]].*?', re.IGNORECASE)
+_re_unplugged = re.compile(r'(.*) [(\[]unplugged.*?[)\]].*?', re.IGNORECASE)
+_re_live_at = re.compile(r'(.*) [(\[]live at.*?[)\]].*?', re.IGNORECASE)
 
 
 def title_is_live(title: str) -> Optional[str]:
@@ -100,6 +101,8 @@ def title_is_live(title: str) -> Optional[str]:
         new_title = m.group(1)
         return new_title
     if _re_unplugged.match(title):
+        return title
+    if _re_live_at.match(title):
         return title
     return None
 
