@@ -591,7 +591,7 @@ class Release(MusicBrainzObject):
         if self.first_release_date is None or other.first_release_date is None:
             return None
         delta = other.first_release_date - self.first_release_date
-        years = delta.days + 1 if delta.days < 0 else delta.days
+        years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
         _logger.debug(f"{self} is {years} years older than {other}")
         return years + 1 if years < 0 else years
 
@@ -760,7 +760,7 @@ class Recording(MusicBrainzObject):
         if self.first_release_date is None or other.first_release_date is None:
             return None
         delta = other.first_release_date - self.first_release_date
-        years = delta.days + 1 if delta.days < 0 else delta.days
+        years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
         _logger.debug(f"{self} is {years} years older than {other}")
         return years + 1 if years < 0 else years
 

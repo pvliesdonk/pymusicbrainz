@@ -31,6 +31,12 @@ pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobb
 
 pymusicbrainz.save_hints()
 
+
+a = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("1890677b-f00e-4df8-b317-9e58a81ca9e2"))
+b = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("c04a6c24-f4c5-4dfa-8b6e-359fd6c1db30"))
+c = a.is_years_older_than(b)
+
+
 seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 eq = (seed == seed2)
