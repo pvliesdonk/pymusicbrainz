@@ -31,6 +31,7 @@ pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobb
 
 pymusicbrainz.save_hints()
 
+wjefefhiuh_fast = pymusicbrainz.search_song('The Clash', 'Should I Stay Or Should I Go', attempt_fast=True)
 
 a = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("1890677b-f00e-4df8-b317-9e58a81ca9e2"))
 b = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("c04a6c24-f4c5-4dfa-8b6e-359fd6c1db30"))

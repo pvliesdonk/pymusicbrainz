@@ -446,6 +446,7 @@ def search_song(
         seed_id: RecordingID = None,
         additional_seed_ids: Sequence[RecordingID] = None,
         fallback_to_all: bool = False,
+        attempt_fast: bool = False,
         cut_off: int = None) -> Optional[MusicbrainzSearchResult]:
     if artist_query is None and title_query is None:
         if seed_id is None:
@@ -479,6 +480,11 @@ def search_song(
 
     if canonical:
         _logger.info(f"Found canonical release: {canonical[0].track}")
+        if attempt_fast:
+            if (canonical[0].release_group.is_studio_album or
+                    (live_title is not None and canonical[0].release_group.is_live_album)):
+                _logger.debug(f"Happy with the canonical release that is an album, using that to bootstrap a result")
+                return MusicbrainzSearchResult.result_from_recording(canonical[0].recording, canonical)
 
     # Doing fingerprint look up
     if file:

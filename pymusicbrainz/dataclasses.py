@@ -592,7 +592,7 @@ class Release(MusicBrainzObject):
             return None
         delta = other.first_release_date - self.first_release_date
         years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
-        _logger.debug(f"{self} is {years} years older than {other}")
+#        _logger.debug(f"{self} is {years} years older than {other}")
         return years + 1 if years < 0 else years
 
     @cached_property
@@ -761,7 +761,7 @@ class Recording(MusicBrainzObject):
             return None
         delta = other.first_release_date - self.first_release_date
         years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
-        _logger.debug(f"{self} is {years} years older than {other}")
+        #_logger.debug(f"{self} is {years} years older than {other}")
         return years + 1 if years < 0 else years
 
     @cached_property
@@ -1411,12 +1411,13 @@ class MusicbrainzSearchResult:
         return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
 
     @classmethod
-    def result_from_recording(cls, recording: Recording) -> "MusicbrainzSearchResult":
+    def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None) -> "MusicbrainzSearchResult":
         from pymusicbrainz import search_song_canonical
 
         result = MusicbrainzSearchResult(live=recording.is_live)
 
-        canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title, live=recording.is_live)
+        if canonical_result is None:
+            canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title, live=recording.is_live)
         result.add_result(search_type=SearchType.CANONICAL, result=canonical_result)
 
         if recording.is_live:
