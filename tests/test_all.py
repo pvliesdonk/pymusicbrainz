@@ -28,6 +28,7 @@ pymusicbrainz.add_recording_name_hint("alpha", "beta", "gamma", "delta")
 pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobbert", recording_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 
 
+flshkjds_year = pymusicbrainz.search_song('Queen', 'Bohemian Rhapsody', year=1975)
 
 pymusicbrainz.save_hints()
 

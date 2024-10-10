@@ -381,6 +381,21 @@ class ReleaseGroup(MusicBrainzObject):
     def is_studio_album(self) -> bool:
         return self.primary_type == ReleaseType.ALBUM and len(self.types) == 1
 
+    def is_years_older_than(self, other: "ReleaseGroup|int") -> Optional[int]:
+        if isinstance(other, ReleaseGroup):
+            if self.first_release_date is None or other.first_release_date is None:
+                return None
+            delta = other.first_release_date - self.first_release_date
+            years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
+            # _logger.debug(f"{self} is {years} years older than {other}")
+            return years + 1 if years < 0 else years
+        elif isinstance(other, int):
+            if self.first_release_date is None:
+                return None
+            return other - self.first_release_date.year
+        else:
+            raise NotImplementedError
+
     @cached_property
     def is_live_album(self) -> bool:
         return self.primary_type == ReleaseType.ALBUM and len(self.types) == 2 and ReleaseType.LIVE in self.types
@@ -587,13 +602,20 @@ class Release(MusicBrainzObject):
     def is_favorite_country(self) -> bool:
         return any([c in self.countries for c in FAVORITE_COUNTRIES])
 
-    def is_years_older_than(self, other: "Release") -> Optional[int]:
-        if self.first_release_date is None or other.first_release_date is None:
-            return None
-        delta = other.first_release_date - self.first_release_date
-        years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
-#        _logger.debug(f"{self} is {years} years older than {other}")
-        return years + 1 if years < 0 else years
+    def is_years_older_than(self, other: "Release|int") -> Optional[int]:
+        if isinstance(other, Release):
+            if self.first_release_date is None or other.first_release_date is None:
+                return None
+            delta = other.first_release_date - self.first_release_date
+            years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
+            # _logger.debug(f"{self} is {years} years older than {other}")
+            return years + 1 if years < 0 else years
+        elif isinstance(other, int):
+            if self.first_release_date is None:
+                return None
+            return other - self.first_release_date.year
+        else:
+            raise NotImplementedError
 
     @cached_property
     def release_group(self) -> ReleaseGroup:
@@ -696,6 +718,9 @@ class Release(MusicBrainzObject):
 
     def __lt__(self, other):
         if isinstance(other, Release):
+            if self.release_group != other.release_group:
+                return self.release_group < other.release_group
+
             #deprioritize latin
             if self.is_latin() and not other.is_latin():
                 return True
@@ -756,13 +781,20 @@ class Recording(MusicBrainzObject):
 
 
     # positive: other is newer, negative: self is newer
-    def is_years_older_than(self, other: "Recording") -> Optional[int]:
-        if self.first_release_date is None or other.first_release_date is None:
-            return None
-        delta = other.first_release_date - self.first_release_date
-        years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
-        #_logger.debug(f"{self} is {years} years older than {other}")
-        return years + 1 if years < 0 else years
+    def is_years_older_than(self, other: "Recording|int") -> Optional[int]:
+        if isinstance(other, Recording):
+            if self.first_release_date is None or other.first_release_date is None:
+                return None
+            delta = other.first_release_date - self.first_release_date
+            years = (delta.days + 1 if delta.days < 0 else delta.days) // 365
+            #_logger.debug(f"{self} is {years} years older than {other}")
+            return years + 1 if years < 0 else years
+        elif isinstance(other, int):
+            if self.first_release_date is None:
+                return None
+            return other - self.first_release_date.year
+        else:
+            raise NotImplementedError
 
     @cached_property
     def aliases(self) -> list[str]:
@@ -1110,7 +1142,7 @@ class Track(MusicBrainzObject):
                 return self.release < other.release
 
     def __str__(self):
-        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'"
+        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'" + (f" [{self.release.release_group.first_release_date.year}]" if self.release.release_group.first_release_date is not None else "")
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1277,18 +1309,25 @@ class MusicbrainzSingleResult:
 
 
 class MusicbrainzListResult(list[MusicbrainzSingleResult]):
-    def sort(self, *, key = None, reverse = False, live:bool = False):
+    def sort(self, *, key = None, reverse = False, live:bool = False, year: int = None):
         if live:
-            super().sort(key=lambda x: (x.recording.is_live, x))
+            if year is None:
+                super().sort(key=lambda x: (x.recording.is_live, x))
+            else:
+                super().sort(key=lambda x: (x.recording.is_live, abs(x.release_group.is_years_older_than(year)), abs(x.recording.is_years_older_than(year)), x))
         else:
-            super().sort()
+            if year is None:
+                super().sort()
+            else:
+                super().sort(key=lambda x: (abs(x.recording.is_years_older_than(year)), x))
 
 class MusicbrainzSearchResult:
 
-    def __init__(self, live: bool = False):
+    def __init__(self, live: bool = False, year: int = None):
         self._best_result_type = None
         self._dict: dict[SearchType, MusicbrainzListResult] = {}
         self.live = live
+        self.year = year # year of release if known
 
     def add_result(self, search_type: SearchType, result: MusicbrainzListResult) -> None:
         self._dict[search_type] = result
@@ -1411,10 +1450,10 @@ class MusicbrainzSearchResult:
         return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
 
     @classmethod
-    def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None) -> "MusicbrainzSearchResult":
+    def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None, year: Optional[int] = None) -> "MusicbrainzSearchResult":
         from pymusicbrainz import search_song_canonical
 
-        result = MusicbrainzSearchResult(live=recording.is_live)
+        result = MusicbrainzSearchResult(live=recording.is_live, year=year)
 
         if canonical_result is None:
             canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title, live=recording.is_live)

@@ -143,7 +143,8 @@ def search_artist_musicbrainz(artist_query: str, cut_off: int = 90) -> list["Art
 def search_song_canonical(
         artist_query: str,
         title_query: str,
-        live: bool = False
+        live: bool = False,
+        year: int = None
 ) -> Optional[MusicbrainzListResult]:
     """Search for a recording in the list of canonical releases
 
@@ -164,7 +165,7 @@ def search_song_canonical(
             except IllegaleRecordingReleaseGroupCombination as ex:
                 _logger.error(ex)
                 _logger.error("Could not match canonical result to database. Likely due to updated references.")
-        result.sort(live=live)
+        result.sort(live=live, year=year)
         return result
     else:
         _logger.info(f"No canonical release found for '{artist_query}' - '{title_query}' ")
@@ -176,6 +177,7 @@ def _search_release_group_by_recording_ids(
         search_type: SearchType,
         use_siblings: bool = True,
         live: bool = False,
+        year: int = None,
         cut_off: int = None
 ) -> Optional[MusicbrainzListResult]:
     if cut_off is None:
@@ -239,7 +241,7 @@ def _search_release_group_by_recording_ids(
                             # _logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
                             found_rgs.append(single_result)
 
-    found_rgs.sort(live=live)
+    found_rgs.sort(live=live, year=year)
     if len(found_rgs) > 0:
         _logger.info(f"Found {found_rgs[0].track} for searchtype {search_type}")
         return found_rgs
@@ -318,6 +320,7 @@ def search_by_recording(
         use_siblings: bool = True,
         cut_off: int = None,
         live: bool = False,
+        year: int = None,
         fallback_to_all: bool = False) -> MusicbrainzSearchResult:
     if isinstance(recordings, Recording):
         recordings = [recordings]
@@ -327,6 +330,7 @@ def search_by_recording(
         recording_ids=recording_ids,
         use_siblings=use_siblings,
         cut_off=cut_off,
+        year=year,
         live=live,
         fallback_to_all=fallback_to_all)
 
@@ -336,10 +340,11 @@ def search_by_recording_id(
         use_siblings: bool = True,
         cut_off: int = None,
         live: bool = False,
+        year: int = None,
         fallback_to_all: bool = False
 
 ) -> MusicbrainzSearchResult:
-    results: MusicbrainzSearchResult = MusicbrainzSearchResult(live=live)
+    results: MusicbrainzSearchResult = MusicbrainzSearchResult(live=live, year=year)
     for search_type in SearchType:
         if search_type in [SearchType.CANONICAL, SearchType.ALL]:
             continue
@@ -348,6 +353,7 @@ def search_by_recording_id(
             search_type=SearchType(search_type),
             use_siblings=use_siblings,
             live=live,
+            year=year,
             cut_off=cut_off)
         if res is not None:
             results.add_result(search_type, res)
@@ -443,11 +449,14 @@ def search_song(
         artist_query: str = None,
         title_query: str = None,
         file: pathlib.Path = None,
+        year: int = None,
         seed_id: RecordingID = None,
         additional_seed_ids: Sequence[RecordingID] = None,
         fallback_to_all: bool = False,
         attempt_fast: bool = False,
-        cut_off: int = None) -> Optional[MusicbrainzSearchResult]:
+        cut_off: int = None,
+        hint_shortcut: bool = False
+) -> Optional[MusicbrainzSearchResult]:
     if artist_query is None and title_query is None:
         if seed_id is None:
             raise IllegalArgumentError("Either provide artist_query and title_query, or a seed_id")
@@ -462,6 +471,13 @@ def search_song(
     if "recording_id" in hint.keys():
         seed_recording = get_recording(hint["recording_id"])
 
+        if hint_shortcut:
+            _logger.info("Directly turning a hint into a result set.")
+            hint_result = MusicbrainzSearchResult.result_from_recording(recording=seed_recording)
+            if hint_result is not None and not hint_result.is_empty():
+                return hint_result
+
+
     if cut_off is None:
         cut_off = 90
 
@@ -472,11 +488,11 @@ def search_song(
     # First find a canonical result:
     _logger.info(f"Step 1. performing canonical search on '{artist_query}' - '{title_query}'")
     canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=title_query,
-                                                             live=(live_title is not None))
+                                                             live=(live_title is not None), year=year)
     if not canonical and live_title:
         _logger.info(f"Step 1b. retry canonical search for live title on '{artist_query}' - '{live_title}'")
         canonical: MusicbrainzListResult = search_song_canonical(artist_query=artist_query, title_query=live_title,
-                                                                 live=True)
+                                                                 live=True, year=year)
 
     if canonical:
         _logger.info(f"Found canonical release: {canonical[0].track}")
@@ -579,9 +595,9 @@ def search_song(
             f"Found {len(candidates_normal)} normal performances and {len(candidates_other)} other performances")
 
         _logger.info(f"Step 6. Determining best releases")
-        result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, live=(live_title is not None),
+        result_normal: MusicbrainzSearchResult = search_by_recording(candidates_normal, live=(live_title is not None), year=year,
                                                                      fallback_to_all=fallback_to_all)
-        result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, live=(live_title is not None),
+        result_other: MusicbrainzSearchResult = search_by_recording(candidates_other, live=(live_title is not None), year=year,
                                                                     fallback_to_all=fallback_to_all)
 
         if result_normal.is_empty():
@@ -608,6 +624,7 @@ def search_song(
     if result.is_empty():
         _logger.warning(f"Could not find a match for '{artist_query}' - '{title_query}' after every search I tried")
         return None
+    _logger.info(f"Found result {result}")
     return result
 
 
