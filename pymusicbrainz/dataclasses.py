@@ -18,6 +18,11 @@ from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleR
 
 _logger = logging.getLogger(__name__)
 
+def _abs_for_none(a: Optional[int]) -> int:
+    if a is None:
+        return 100
+    else:
+        return abs(a)
 
 def escape(s: Any) -> str:
     return re.sub(r'\'', '\\\'', str(s))
@@ -1314,12 +1319,12 @@ class MusicbrainzListResult(list[MusicbrainzSingleResult]):
             if year is None:
                 super().sort(key=lambda x: (x.recording.is_live, x))
             else:
-                super().sort(key=lambda x: (x.recording.is_live, abs(x.release_group.is_years_older_than(year)), abs(x.recording.is_years_older_than(year)), x))
+                super().sort(key=lambda x: (x.recording.is_live, _abs_for_none(x.release_group.is_years_older_than(year)), _abs_for_none(x.recording.is_years_older_than(year)), x))
         else:
             if year is None:
                 super().sort()
             else:
-                super().sort(key=lambda x: (abs(x.recording.is_years_older_than(year)), x))
+                super().sort(key=lambda x: (_abs_for_none(x.recording.is_years_older_than(year)), x))
 
 class MusicbrainzSearchResult:
 
