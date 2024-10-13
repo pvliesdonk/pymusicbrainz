@@ -224,6 +224,9 @@ def _search_release_group_by_recording_ids(
 
     found_rgs: MusicbrainzListResult = MusicbrainzListResult()
     for artist in artists:
+        if artist.id == UNKNOWN_ARTIST_ID or artist.id == VA_ARTIST_ID:
+            _logger.warning("Not iterating over unknown/va release groups")
+            continue
         for rg in getattr(artist, search_field):
             for recording in recordings:
                 if recording in rg:
