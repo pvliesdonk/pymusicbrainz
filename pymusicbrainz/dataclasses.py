@@ -1304,9 +1304,12 @@ class MusicbrainzSingleResult:
     def __lt__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
             if self.release_group == other.release_group:
-                return self.track < other.track
+                if self.release == other.release:
+                    return self.track < other.track
+                else:
+                    return self.release < other.release
             else:
-                return self.release_group < other.release_group
+                return self.release < other.release
 
     def __eq__(self, other):
         if isinstance(other, MusicbrainzSingleResult):
