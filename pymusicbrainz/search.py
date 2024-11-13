@@ -391,6 +391,7 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
 
     if response['status'] != 'ok':
         _logger.error("Could not obtain Acoustid fingerprint from webservice")
+        _logger.error(f"status: {response['status']}")
         return []
 
     recording_ids = []
