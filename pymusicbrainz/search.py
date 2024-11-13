@@ -390,7 +390,8 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
         raise MBApiError("Could not obtain Acoustid fingerprint from webservice") from ex
 
     if response['status'] != 'ok':
-        raise MBApiError("Could not obtain Acoustid fingerprint from webservice")
+        _logger.error("Could not obtain Acoustid fingerprint from webservice")
+        return []
 
     recording_ids = []
     for result in response['results']:
