@@ -9,7 +9,7 @@ import musicbrainzngs
 from . import find_hint_recording
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
-    MusicbrainzSingleResult, MusicbrainzListResult
+    MusicbrainzSingleResult, MusicbrainzListResult, Release, ReleaseGroup
 from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType, PerformanceWorkAttributes
 from .exceptions import MBApiError, IllegalArgumentError, IllegaleRecordingReleaseGroupCombination
 from .object_cache import get_recording, get_artist, get_release
@@ -159,8 +159,18 @@ def search_song_canonical(
         result: MusicbrainzListResult = MusicbrainzListResult()
         for hit in canonical_hits:
             try:
-                r = MusicbrainzSingleResult(release=hit['release'], release_group=hit['release_group'],
-                                            recording=hit['recording'])
+                release: Release = hit['release']
+                release_group: ReleaseGroup = hit['release_group']
+                recording: Recording = hit['recording']
+
+                # check whether release matches my expectations
+                if release_group.is_va and not release_group.is_soundtrack:
+                    _logger.info(f"Canonical release for '{artist_query}' - '{title_query}' is VA and we don't want it")
+                    _logger.debug(f"Result was {release}")
+                    return None
+
+                r = MusicbrainzSingleResult(release=release, release_group=release_group,
+                                            recording=recording)
                 result.append(r)
             except IllegaleRecordingReleaseGroupCombination as ex:
                 _logger.error(ex)

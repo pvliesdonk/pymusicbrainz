@@ -17,7 +17,7 @@ from unidecode import unidecode
 
 # get latest dataset from https://data.metabrainz.org/pub/musicbrainz/canonical_data/
 
-DATA_FILE_NAME = "musicbrainz-canonical-dump-20240903-080003.tar.zst"
+DATA_FILE_NAME = "musicbrainz-canonical-dump-20241103-080003.tar.zst"
 DATA_FILE = pathlib.Path(DATA_FILE_NAME).resolve(strict=True)
 
 TYPESENSE_COLLECTION = "musicbrainz"

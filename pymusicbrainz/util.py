@@ -156,7 +156,7 @@ def artist_redirect(artist_id: str | ArtistID) -> ArtistID:
         if res is None:
             return artist_id
         else:
-            return ArtistID(str(res))
+            return artist_redirect(str(res))
 
 
 def release_group_redirect(rg_id: str | ReleaseGroupID) -> ReleaseGroupID:
@@ -176,7 +176,7 @@ def release_group_redirect(rg_id: str | ReleaseGroupID) -> ReleaseGroupID:
         if res is None:
             return rg_id
         else:
-            return ReleaseGroupID(str(res))
+            return release_group_redirect(str(res))
 
 
 def release_redirect(release_id: str | ReleaseID) -> ReleaseID:
@@ -196,7 +196,7 @@ def release_redirect(release_id: str | ReleaseID) -> ReleaseID:
         if res is None:
             return release_id
         else:
-            return ReleaseID(str(res))
+            return release_redirect(str(res))
 
 
 def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
@@ -216,7 +216,7 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
         if res is None:
             return rec_id
         else:
-            return RecordingID(str(res))
+            return recording_redirect(str(res))
 
 
 _uuid_match = re.compile(r'[a-z0-9]{8}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{12}')
