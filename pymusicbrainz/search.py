@@ -237,9 +237,11 @@ def _search_release_group_by_recording_ids(
         if artist.id == UNKNOWN_ARTIST_ID or artist.id == VA_ARTIST_ID:
             _logger.warning("Not iterating over unknown/va release groups")
             continue
-        for rg in getattr(artist, search_field):
+        rgs = getattr(artist, search_field)
+        rg: ReleaseGroup
+        for rg in rgs:
             for recording in recordings:
-                if recording in rg:
+                if recording in rg.normal_recordings:
                     single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
                     if single_result not in found_rgs:
                         #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")

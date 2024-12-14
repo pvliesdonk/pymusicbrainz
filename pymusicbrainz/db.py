@@ -39,3 +39,24 @@ def get_db_session() -> None:
         configure_database(DEFAULT_DB_URI)
 
     return _Session()
+#
+# def has_materialized_tables() -> bool:
+#     with get_db_session() as session:
+#
+#         stmt = sa.select(sa.func.count("*")).select_from(mbdata.models.ArtistRelease)
+#         from artist_release
+#         select
+#         count(*)
+#         from artist_release_group_va
+#         select
+#         count(*)
+#         from artist_release_group_nonva
+#         select
+#         count(*)
+#         from area_containment
+#         select
+#         count(*)
+#         from recording_first_release_date
+#         select
+#         count(*)
+#         from release_first_release_date

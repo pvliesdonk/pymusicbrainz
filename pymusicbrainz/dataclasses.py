@@ -264,7 +264,7 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def studio_albums(self) -> list["ReleaseGroup"]:
-        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+            return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
 
@@ -432,6 +432,15 @@ class ReleaseGroup(MusicBrainzObject):
             return parse_partial_date(rgm.first_release_date)
 
     @cached_property
+    def min_track_count(self) -> int:
+        return min([r.track_count for r in self.releases])
+
+    @cached_property
+    def mode_track_count(self) -> int:
+        lst = [r.track_count for r in self.releases]
+        return max(set(lst), key=lst.count)
+
+    @cached_property
     def aliases(self) -> list[str]:
         result = [self.title]
         with get_db_session() as session:
@@ -458,6 +467,34 @@ class ReleaseGroup(MusicBrainzObject):
         return sorted([get_release(release) for release in self._releases_db_items])
 
     @cached_property
+    def normal_releases(self) -> list["Release"]:
+        return [r for r in self.releases if self._is_normal(r)]
+
+    def _is_normal(self, r: "Release") -> True:
+        #script
+        if r.script is not None and r.script not in ["Latin"]:
+            _logger.debug(f"normal releases: wrong script ({r.script}) for release {r}")
+            return False
+        #format
+        # for m in r.mediums:
+        #     if m.format_id not in []:
+        #         return False
+
+        #year
+        if self.first_release_date is not None:
+            if r.first_release_date is not None and self.first_release_date - r.first_release_date > 3 * datetime.timedelta(days=365):
+                _logger.debug(f"normal releases: late release, more than 3 years after initial release")
+                return False
+
+        #track amount
+        if r.track_count > self.mode_track_count:
+            _logger.debug(f"normal release: too many track {r.track_count} vs {self.min_track_count}")
+            return False
+
+
+        return True
+
+    @cached_property
     def release_ids(self) -> list["ReleaseID"]:
         return [ReleaseID(str(release.gid)) for release in self._releases_db_items]
 
@@ -479,6 +516,15 @@ class ReleaseGroup(MusicBrainzObject):
     def recordings(self) -> list["Recording"]:
         from .object_cache import get_recording
         return [get_recording(recording) for recording in self._recordings_db_items]
+
+    @cached_property
+    def normal_recordings(self) -> list["Recording"]:
+        result = []
+        for rel in self.normal_releases:
+            for rec in rel.recordings:
+                if not rec in result:
+                    result.append(rec)
+        return result
 
     @cached_property
     def recording_ids(self) -> list["RecordingID"]:
@@ -635,6 +681,10 @@ class Release(MusicBrainzObject):
             ms: list[mbdata.models.Medium] = session.scalars(stmt).all()
 
             return [get_medium(m) for m in ms]
+
+    @cached_property
+    def track_count(self) -> int:
+        return sum([m.track_count for m in self.mediums])
 
     @cached_property
     def tracks(self) -> list["Track"]:
@@ -1068,7 +1118,13 @@ class Medium(MusicBrainzObject):
             self._release_id: ReleaseID = ReleaseID(str(m.release.gid))
             self._track_ids: list[TrackID] = [TrackID(str(t.gid)) for t in m.tracks]
             self.track_count = m.track_count
-            self.format = m.format.name if m.format is not None else None
+            if m.format is None:
+                self.format = None
+                self.format_id = None
+            else:
+                self.format = m.format.name
+                self.format_id = m.format_id
+
 
     @cached_property
     def release(self) -> Release:
