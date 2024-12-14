@@ -31,7 +31,7 @@ a = pymusicbrainz.get_artist("0383dadf-2a4e-4d10-a46a-e9e041da8eb3")
 aa = a.release_groups
 s = a.studio_albums[0]
 
-
+sdjhskdfjh = pymusicbrainz.search_song('Andrea Bocelli & Gerardina Trovato', 'Vivere')
 b = pymusicbrainz.get_release("18db7ddc-b41e-4e84-8506-6ee56ac2e77d")
 ccc = b.mediums
 flshkjds_year = pymusicbrainz.search_song('Queen', 'Bohemian Rhapsody', year=1975)

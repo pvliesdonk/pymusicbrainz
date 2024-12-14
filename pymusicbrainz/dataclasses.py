@@ -473,7 +473,7 @@ class ReleaseGroup(MusicBrainzObject):
     def _is_normal(self, r: "Release") -> True:
         #script
         if r.script is not None and r.script not in ["Latin"]:
-            _logger.debug(f"normal releases: wrong script ({r.script}) for release {r}")
+            # _logger.debug(f"normal releases: wrong script ({r.script}) for release {r}")
             return False
         #format
         # for m in r.mediums:
@@ -483,12 +483,12 @@ class ReleaseGroup(MusicBrainzObject):
         #year
         if self.first_release_date is not None:
             if r.first_release_date is not None and self.first_release_date - r.first_release_date > 3 * datetime.timedelta(days=365):
-                _logger.debug(f"normal releases: late release, more than 3 years after initial release")
+                # _logger.debug(f"normal releases: late release, more than 3 years after initial release")
                 return False
 
         #track amount
         if r.track_count > self.mode_track_count:
-            _logger.debug(f"normal release: too many track {r.track_count} vs {self.min_track_count}")
+            # _logger.debug(f"normal release: too many track {r.track_count} vs {self.min_track_count} for release {r}")
             return False
 
 
