@@ -42,14 +42,14 @@ def search_song_musicbrainz(
         "recording": title_query,  # "alias" or "recording"
         "limit": 100,
         "status": str(ReleaseStatus.OFFICIAL),
-        "video": False,
-        "strict": strict
+        "video": False #,
+        # "strict": strict
     }
 
     if isinstance(artist_query, Artist):
         search_params["arid"] = str(artist_query.id)
     if isinstance(artist_query, str):
-        search_params["artist"] = artist_query
+        search_params["query"] = artist_query
 
     if secondary_type is not None:
         search_params["secondarytype"] = str(secondary_type).lower()
@@ -474,7 +474,7 @@ def search_song(
         year: int = None,
         seed_id: RecordingID = None,
         additional_seed_ids: Sequence[RecordingID] = None,
-        fallback_to_all: bool = False,
+        fallback_to_all: bool = True,
         attempt_fast: bool = False,
         cut_off: int = None,
         hint_shortcut: bool = False

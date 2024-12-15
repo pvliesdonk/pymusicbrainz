@@ -1530,13 +1530,15 @@ class MusicbrainzSearchResult:
             _logger.debug("No other release found, but found a potential extended studio album")
             choice = SearchType.EXTENDED_ALBUM
 
-        elif self.all is not None:
-            _logger.debug("No other release found, but found something outside my predefined categories")
-            choice = SearchType.ALL
 
         elif self.canonical is not None:
             _logger.debug("Falling back to canonical release")
             choice = SearchType.CANONICAL
+
+        elif self.all is not None:
+            _logger.debug("No other release found, but found something outside my predefined categories")
+            choice = SearchType.ALL
+
 
         # should never get here
         if choice is None:
