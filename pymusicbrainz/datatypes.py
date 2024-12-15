@@ -124,6 +124,10 @@ class SearchType(enum.StrEnum):
     SOUNDTRACK = "soundtrack"
     EP = "ep"
     ALL = "all"
+    EXTENDED_ALBUM = "extended_album"
+    COMPILATION = "compilation"
+    IMPORT = "import"  # not used in this search
+    MANUAL = "manual" # not used in this search
 
 
 class PerformanceWorkAttributes(enum.StrEnum):

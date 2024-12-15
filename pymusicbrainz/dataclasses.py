@@ -153,7 +153,8 @@ class Artist(MusicBrainzObject):
                                     primary_type: ReleaseType,
                                     secondary_types: SecondaryTypeList,
                                     credited: bool,
-                                    contributing: bool) -> list[mbdata.models.ReleaseGroup]:
+                                    contributing: bool
+                                    ) -> list[mbdata.models.ReleaseGroup]:
         """Fetch release groups for this artist from the database
 
         :param primary_type: only get release groups with this primary type
@@ -273,6 +274,20 @@ class Artist(MusicBrainzObject):
         return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
+
+    @cached_property
+    def compilations(self) -> list["ReleaseGroup"]:
+            return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.COMPILATION]), credited=True,
+                                       contributing=False)
+
+    @cached_property
+    def compilation_ids(self) -> list["ReleaseGroupID"]:
+        return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
+                                       secondary_types=SecondaryTypeList([ReleaseType.COMPILATION]), credited=True,
+                                       contributing=False)
+
+
 
     @cached_property
     def live_albums(self) -> list["ReleaseGroup"]:
@@ -470,7 +485,7 @@ class ReleaseGroup(MusicBrainzObject):
     def normal_releases(self) -> list["Release"]:
         return [r for r in self.releases if self._is_normal(r)]
 
-    def _is_normal(self, r: "Release") -> True:
+    def _is_normal(self, r: "Release") -> bool:
         #script
         if r.script is not None and r.script not in ["Latin"]:
             # _logger.debug(f"normal releases: wrong script ({r.script}) for release {r}")
@@ -493,6 +508,24 @@ class ReleaseGroup(MusicBrainzObject):
 
 
         return True
+
+    @cached_property
+    def extended_releases(self) -> list["Release"]:
+        return [r for r in self.releases if self._is_extended(r)]
+
+    def _is_extended(self, r: "Release") -> bool:
+        if r.script is not None and r.script not in ["Latin"]:
+            # _logger.debug(f"normal releases: wrong script ({r.script}) for release {r}")
+            return False
+        #format
+        # for m in r.mediums:
+        #     if m.format_id not in []:
+        #         return False
+
+        #track amount
+        if r.track_count < self.mode_track_count:
+            # >_logger.debug(f"normal release: too many track {r.track_count} vs {self.min_track_count} for release {r}")
+            return False
 
     @cached_property
     def release_ids(self) -> list["ReleaseID"]:
@@ -672,6 +705,14 @@ class Release(MusicBrainzObject):
     def release_group(self) -> ReleaseGroup:
         from .object_cache import get_release_group
         return get_release_group(self._release_group_id)
+
+    @cached_property
+    def is_normal_release(self) -> bool:
+        return self in self.release_group.normal_releases
+
+    @cached_property
+    def is_extended_release(self) -> bool:
+        return self in self.release_group.extended_releases
 
     @cached_property
     def mediums(self) -> list["Medium"]:
@@ -1433,9 +1474,17 @@ class MusicbrainzSearchResult:
     def soundtrack(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.SOUNDTRACK)
 
+    @property
+    def compilation(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.COMPILATION)
+
+    @property
+    def extended_album(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.EXTENDED_ALBUM)
+
     def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
         for search_type in SearchType:
-            r = self.get_result(search_type)
+            r = self.get_result(SearchType(search_type))
             if r is not None:
                 yield search_type, r
 
@@ -1445,17 +1494,14 @@ class MusicbrainzSearchResult:
             raise NotFoundError("Result is empty")
 
         choice = None
-        if self.canonical is not None:
-            choice = SearchType.CANONICAL
 
         if self.studio_album is not None:  # there may be no canonical
-            if self.studio_album != self.canonical:
-                choice = SearchType.STUDIO_ALBUM
-            # else keep canonical
+            choice = SearchType.STUDIO_ALBUM
             if self.soundtrack is not None:
                 if self.soundtrack < self.studio_album:
                     _logger.debug("Found soundtrack older than studio album")
                     choice = SearchType.SOUNDTRACK
+
         elif self.ep is not None:  # there is no album
             if self.ep != self.canonical:
                 choice = SearchType.EP
@@ -1472,22 +1518,25 @@ class MusicbrainzSearchResult:
                     _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
 
-        elif choice is None and self.single is not None:
+        elif self.single is not None:
             _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
 
-        elif (
-                choice is SearchType.CANONICAL and VA_ARTIST_ID in self.canonical.release_group.artists) and self.single is not None:
-            _logger.debug("Using single instead of VA canonical release")
-            choice = SearchType.SINGLE
+        elif self.compilation is not None:
+            _logger.debug("No other release found, but found a potential compilation album")
+            choice = SearchType.COMPILATION
 
-        elif choice is None and self.all is not None:
+        elif self.extended_album is not None:
+            _logger.debug("No other release found, but found a potential extended studio album")
+            choice = SearchType.EXTENDED_ALBUM
+
+        elif self.all is not None:
             _logger.debug("No other release found, but found something outside my predefined categories")
             choice = SearchType.ALL
 
-        elif (
-                choice is SearchType.CANONICAL and VA_ARTIST_ID in self.canonical.release_group.artists) and self.all is not None:
-            _logger.debug("Using something weird instead of VA canonical release")
+        elif self.canonical is not None:
+            _logger.debug("Falling back to canonical release")
+            choice = SearchType.CANONICAL
 
         # should never get here
         if choice is None:

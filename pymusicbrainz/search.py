@@ -163,12 +163,6 @@ def search_song_canonical(
                 release_group: ReleaseGroup = hit['release_group']
                 recording: Recording = hit['recording']
 
-                # check whether release matches my expectations
-                if release_group.is_va and not release_group.is_soundtrack:
-                    _logger.info(f"Canonical release for '{artist_query}' - '{title_query}' is VA and we don't want it")
-                    _logger.debug(f"Result was {release}")
-                    return None
-
                 r = MusicbrainzSingleResult(release=release, release_group=release_group,
                                             recording=recording)
                 result.append(r)
@@ -222,6 +216,10 @@ def _search_release_group_by_recording_ids(
             search_field = "soundtracks"
         case SearchType.EP:
             search_field = "eps"
+        case SearchType.COMPILATION:
+            search_field = "compilations"
+        case SearchType.EXTENDED_ALBUM:
+            search_field = "studio_albums"
         case SearchType.ALL | _:
             search_field = "release_groups"
 
@@ -241,11 +239,18 @@ def _search_release_group_by_recording_ids(
         rg: ReleaseGroup
         for rg in rgs:
             for recording in recordings:
-                if recording in rg.normal_recordings:
-                    single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
-                    if single_result not in found_rgs:
-                        #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
-                        found_rgs.append(single_result)
+                if search_type == SearchType.STUDIO_ALBUM:
+                    if recording in rg.normal_recordings:
+                        single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
+                        if single_result not in found_rgs:
+                            # _logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
+                            found_rgs.append(single_result)
+                else:
+                    if recording in rg.recordings:
+                        single_result = MusicbrainzSingleResult(release_group=rg, recording=recording)
+                        if single_result not in found_rgs:
+                            #_logger.debug(f"Found track {track.position}. {recording.artist_credit_phrase} - {recording.title}")
+                            found_rgs.append(single_result)
         if search_type == SearchType.STUDIO_ALBUM and live:
             _logger.debug("Searching for a live song: adding live albums in album search")
             for rg in getattr(artist, "live_albums"):
@@ -361,7 +366,7 @@ def search_by_recording_id(
 ) -> MusicbrainzSearchResult:
     results: MusicbrainzSearchResult = MusicbrainzSearchResult(live=live, year=year)
     for search_type in SearchType:
-        if search_type in [SearchType.CANONICAL, SearchType.ALL]:
+        if search_type in [SearchType.CANONICAL, SearchType.ALL, SearchType.IMPORT, SearchType.MANUAL]:
             continue
         res = _search_release_group_by_recording_ids(
             recording_ids=recording_ids,
@@ -371,7 +376,7 @@ def search_by_recording_id(
             year=year,
             cut_off=cut_off)
         if res is not None:
-            results.add_result(search_type, res)
+            results.add_result(SearchType(search_type), res)
 
     if results.is_empty() and fallback_to_all:
         res = _search_release_group_by_recording_ids(
@@ -623,7 +628,18 @@ def search_song(
             result = result_normal
 
     if canonical is not None:
-        result.add_result(SearchType.CANONICAL, canonical)
+        filter_canonical = MusicbrainzListResult()
+        for r in canonical:
+            # check whether release matches my expectations
+            if r.release_group.is_va and not r.release_group.is_soundtrack:
+                _logger.info(f"Canonical release for '{artist_query}' - '{title_query}' is VA and we don't want it")
+                _logger.debug(f"Result was {r.release}")
+            else:
+                filter_canonical.append(r)
+        if len(filter_canonical) > 0:
+            result.add_result(SearchType.CANONICAL, filter_canonical)
+        else:
+            _logger.info("All canonical result were rejected...")
 
     elif not result.is_empty():
         _logger.info(f"Retrying failed canonical search using search result")
