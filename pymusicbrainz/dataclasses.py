@@ -1482,6 +1482,14 @@ class MusicbrainzSearchResult:
     def extended_album(self) -> Optional[MusicbrainzSingleResult]:
         return self.get_result(SearchType.EXTENDED_ALBUM)
 
+    @property
+    def manual(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.MANUAL)
+
+    @property
+    def imported(self) -> Optional[MusicbrainzSingleResult]:
+        return self.get_result(SearchType.IMPORT)
+
     def iterate_results(self) -> Generator[SearchType, MusicbrainzSingleResult]:
         for search_type in SearchType:
             r = self.get_result(SearchType(search_type))
@@ -1495,7 +1503,15 @@ class MusicbrainzSearchResult:
 
         choice = None
 
-        if self.studio_album is not None:  # there may be no canonical
+        if self.manual is not None:
+            _logger.debug("Found a manually set release")
+            choice = SearchType.MANUAL
+
+        elif self.imported is not None:
+            _logger.debug("Found an imported release set")
+            choice = SearchType.IMPORT
+
+        elif self.studio_album is not None:  # there may be no canonical
             choice = SearchType.STUDIO_ALBUM
             if self.soundtrack is not None:
                 if self.soundtrack < self.studio_album:
