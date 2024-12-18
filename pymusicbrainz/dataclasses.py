@@ -1123,11 +1123,11 @@ class Recording(MusicBrainzObject):
             return self in item.performances['all']
 
     def is_sane(self, artist_query: str|Artist, title_query: str, cut_off=70) -> bool:
-
+        from .util import flatten_title
         if isinstance(artist_query, Artist):
             artist_sane = (artist_query in self.artists)
         else:
-            from .util import flatten_title
+
             artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
 
         title_ratio = rapidfuzz.process.extractOne(
