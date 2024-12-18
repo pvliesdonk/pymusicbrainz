@@ -140,3 +140,4 @@ class PerformanceWorkAttributes(enum.StrEnum):
     PARTIAL = "partial"
     NONE = "no-attr"
     ALL = "all"
+    DEMO = "demo"
