@@ -1554,8 +1554,6 @@ class MusicbrainzSearchResult:
         # should never get here
         if choice is None:
             raise NotFoundError("Was not able to determine a best result for non-empy result set")
-        else:
-            _logger.debug(f"Best Musicbrainz result is of type {str(choice)}")
 
         self._best_result_type = choice
         return self.get_result(choice)
