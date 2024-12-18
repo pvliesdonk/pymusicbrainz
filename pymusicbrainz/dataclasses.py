@@ -314,7 +314,10 @@ class Artist(MusicBrainzObject):
                                           secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                           credited=True, contributing=True)
 
-    def is_sane(self, artist_query: str, cut_off=70) -> bool:
+    def is_sane(self, artist_query: str | "Artist", cut_off=70) -> bool:
+        if isinstance(artist_query, Artist):
+            return self.__eq__(artist_query)
+
         from .util import split_artist, flatten_title
 
         artist_split = split_artist(artist_query)
@@ -1119,9 +1122,13 @@ class Recording(MusicBrainzObject):
         if isinstance(item, Work):
             return self in item.performances['all']
 
-    def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
-        from .util import flatten_title
-        artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
+    def is_sane(self, artist_query: str|Artist, title_query: str, cut_off=70) -> bool:
+
+        if isinstance(artist_query, Artist):
+            artist_sane = (artist_query in self.artists)
+        else:
+            from .util import flatten_title
+            artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
 
         title_ratio = rapidfuzz.process.extractOne(
             flatten_title(recording_name=title_query),

@@ -34,7 +34,11 @@ SUBSTRING_SPLIT = r'(.*)[\[\(](.*?)[\[\)](.*)'
 STRIP_CHARS = ' ().&'
 
 
-def split_artist(s: str, include_first=True) -> list[str]:
+def split_artist(s: str | Artist, include_first=True) -> list[str]:
+    if isinstance(s, Artist):
+        #nothing to split
+        return [s.name]
+
     m = re.match(SUBSTRING_SPLIT, s)
     if m:
         split_results = [s] if include_first else []
