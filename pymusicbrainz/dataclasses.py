@@ -1568,7 +1568,7 @@ class MusicbrainzSearchResult:
     def __repr__(self):
         best_result = self.get_best_result()
         best_track = best_result.track
-        return "(Search result) best result:" + best.track.__repr__() + "  of type " + self.best_result_type
+        return "(Search result) best result:" + best_track.__repr__() + "  of type " + self.best_result_type
 
     @classmethod
     def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None, year: Optional[int] = None) -> "MusicbrainzSearchResult":
