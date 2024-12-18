@@ -314,7 +314,7 @@ class Artist(MusicBrainzObject):
                                           secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                           credited=True, contributing=True)
 
-    def is_sane(self, artist_query: str | "Artist", cut_off=70) -> bool:
+    def is_sane(self, artist_query: "str | Artist", cut_off=70) -> bool:
         if isinstance(artist_query, Artist):
             return self.__eq__(artist_query)
 
