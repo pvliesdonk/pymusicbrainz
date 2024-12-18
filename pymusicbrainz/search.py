@@ -42,8 +42,8 @@ def search_song_musicbrainz(
         "recording": title_query,  # "alias" or "recording"
         "limit": 100,
         "status": str(ReleaseStatus.OFFICIAL),
-        "video": False #,
-        # "strict": strict
+        "video": False,
+        "strict": strict
     }
 
     if isinstance(artist_query, Artist):
@@ -539,16 +539,16 @@ def search_song(
     songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=title_query,
                                                               cut_off=cut_off, strict=True)
 
-    if len(songs_found_mb) == 0 and live_title:
+    if len(songs_found_mb) < 5 and live_title:
         _logger.info(f"Step 3a. performing a search query on Musicbrainz API for live release")
-        songs_found_mb: list[Recording] = search_song_musicbrainz(artist_query=artist_query, title_query=live_title,
+        songs_found_mb += [r for r in search_song_musicbrainz(artist_query=artist_query, title_query=live_title,
                                                                   cut_off=cut_off, strict=True,
-                                                                  secondary_type=ReleaseType.LIVE)
+                                                                  secondary_type=ReleaseType.LIVE) if r not in songs_found_mb]
 
-    if len(songs_found_mb) == 0:
+    if len(songs_found_mb) < 5 :
         _logger.info(f"Step 3b. performing a less restrictive search query on Musicbrainz API")
-        songs_found_mb = search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
-                                                 strict=False)
+        songs_found_mb += [r for r in search_song_musicbrainz(artist_query=artist_query, title_query=title_query, cut_off=cut_off,
+                                                 strict=False) if r not in songs_found_mb]
 
     if len(songs_found_mb) == 0:
         if canonical is not None:
@@ -560,8 +560,7 @@ def search_song(
                 f"Step 3d. Artist search to determine a different artist")
             artists: list[Artist] = search_artist_musicbrainz(artist_query=artist_query, cut_off=80)
             for artist in artists:
-                songs_found_mb = search_song_musicbrainz(artist_query=artist.name, title_query=title_query,
-                                                         cut_off=cut_off)
+                songs_found_mb += [r for r in search_song_musicbrainz(artist_query=artist, title_query=title_query, cut_off=cut_off, strict=False) if r not in songs_found_mb]
 
     _logger.debug(f"Found {len(songs_found_mb)} from musicbrainz search")
 
