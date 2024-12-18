@@ -1504,51 +1504,39 @@ class MusicbrainzSearchResult:
         choice = None
 
         if self.manual is not None:
-            _logger.debug("Found a manually set release")
             choice = SearchType.MANUAL
 
         elif self.imported is not None:
-            _logger.debug("Found an imported release set")
             choice = SearchType.IMPORT
 
         elif self.studio_album is not None:  # there may be no canonical
             choice = SearchType.STUDIO_ALBUM
             if self.soundtrack is not None:
                 if self.soundtrack < self.studio_album:
-                    _logger.debug("Found soundtrack older than studio album")
                     choice = SearchType.SOUNDTRACK
 
         elif self.ep is not None:  # there is no album
-            if self.ep != self.canonical:
-                choice = SearchType.EP
+            choice = SearchType.EP
             if self.soundtrack is not None:
                 if self.soundtrack < self.ep:
-                    _logger.debug("Found soundtrack older than ep")
                     choice = SearchType.SOUNDTRACK
 
         elif self.soundtrack is not None:  # there is no ep
-            if self.soundtrack != self.canonical:
-                choice = SearchType.SOUNDTRACK
+            choice = SearchType.SOUNDTRACK
             if self.single is not None:
                 if self.single < self.soundtrack:
-                    _logger.debug("Found single older than soundtrack")
                     choice = SearchType.SINGLE
 
         elif self.single is not None:
-            _logger.debug("No other release found, but Single is available")
             choice = SearchType.SINGLE
 
         elif self.compilation is not None:
-            _logger.debug("No other release found, but found a potential compilation album")
             choice = SearchType.COMPILATION
 
         elif self.extended_album is not None:
-            _logger.debug("No other release found, but found a potential extended studio album")
             choice = SearchType.EXTENDED_ALBUM
 
-
         elif self.canonical is not None:
-            _logger.debug("Falling back to canonical release")
             choice = SearchType.CANONICAL
 
         elif self.all is not None:
@@ -1578,7 +1566,9 @@ class MusicbrainzSearchResult:
         return self.best_result_type == searchtype
 
     def __repr__(self):
-        return "(Search result) best result:" + self.get_best_result().track.__repr__() + "  of type " + self.best_result_type
+        best_result = self.get_best_result()
+        best_track = best_result.track
+        return "(Search result) best result:" + best.track.__repr__() + "  of type " + self.best_result_type
 
     @classmethod
     def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None, year: Optional[int] = None) -> "MusicbrainzSearchResult":
