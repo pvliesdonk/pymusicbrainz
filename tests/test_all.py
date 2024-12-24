@@ -28,6 +28,13 @@ pymusicbrainz.add_recording_name_hint("alpha", "beta", "gamma", "delta")
 pymusicbrainz.add_recording_id_hint(match_artist="flopdwork", match_title="vlobbert", recording_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 
 
+rg = pymusicbrainz.get_release_group("810068af-2b3c-3e9c-b2ab-68a3f3e3787d")
+urls = rg.external_urls
+did = rg.discogs_ids
+
+a = pymusicbrainz.get_recording(pymusicbrainz.RecordingID("1890677b-f00e-4df8-b317-9e58a81ca9e2"))
+
+
 a = pymusicbrainz.get_artist("0383dadf-2a4e-4d10-a46a-e9e041da8eb3")
 aa = a.release_groups
 

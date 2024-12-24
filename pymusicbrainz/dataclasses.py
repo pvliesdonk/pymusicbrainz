@@ -18,11 +18,13 @@ from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError, IllegaleR
 
 _logger = logging.getLogger(__name__)
 
+
 def _abs_for_none(a: Optional[int]) -> int:
     if a is None:
         return 100
     else:
         return abs(a)
+
 
 def escape(s: Any) -> str:
     return re.sub(r'\'', '\\\'', str(s))
@@ -265,29 +267,27 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def studio_albums(self) -> list["ReleaseGroup"]:
-            return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
 
     @cached_property
     def studio_album_ids(self) -> list["ReleaseGroupID"]:
         return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
-                                       secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
-                                       contributing=False)
+                                          secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def compilations(self) -> list["ReleaseGroup"]:
-            return self.get_release_groups(primary_type=ReleaseType.ALBUM,
+        return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.COMPILATION]), credited=True,
                                        contributing=False)
 
     @cached_property
     def compilation_ids(self) -> list["ReleaseGroupID"]:
         return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
-                                       secondary_types=SecondaryTypeList([ReleaseType.COMPILATION]), credited=True,
-                                       contributing=False)
-
-
+                                          secondary_types=SecondaryTypeList([ReleaseType.COMPILATION]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def live_albums(self) -> list["ReleaseGroup"]:
@@ -298,9 +298,8 @@ class Artist(MusicBrainzObject):
     @cached_property
     def live_album_ids(self) -> list["ReleaseGroupID"]:
         return self.get_release_group_ids(primary_type=ReleaseType.ALBUM,
-                                       secondary_types=SecondaryTypeList([ReleaseType.LIVE]), credited=True,
-                                       contributing=False)
-
+                                          secondary_types=SecondaryTypeList([ReleaseType.LIVE]), credited=True,
+                                          contributing=False)
 
     @cached_property
     def soundtracks(self) -> list["ReleaseGroup"]:
@@ -331,6 +330,33 @@ class Artist(MusicBrainzObject):
         if artist_ratio < cut_off:
             _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         return artist_ratio > cut_off
+
+    @cached_property
+    def external_urls(self) -> dict[str, str]:
+        out = {}
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.LinkArtistURL)
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkArtistURL.url))
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkArtistURL.link)
+                    .selectinload(mbdata.models.Link.link_type)
+                )
+
+                .where(mbdata.models.LinkArtistURL.artist_id == self._db_id)
+            )
+            lrus = session.scalars(stmt).all()
+            lru: mbdata.models.LinkReleaseGroupURL
+            for lru in lrus:
+                url = lru.url.url
+                urltype = lru.link.link_type.link_phrase
+                if urltype not in out.keys():
+                    out[urltype] = [url]
+                else:
+                    out[urltype].append(url)
+
+        return out
 
     def __str__(self):
         if self.disambiguation is not None:
@@ -423,7 +449,6 @@ class ReleaseGroup(MusicBrainzObject):
     def is_live_album(self) -> bool:
         return self.primary_type == ReleaseType.ALBUM and len(self.types) == 2 and ReleaseType.LIVE in self.types
 
-
     @cached_property
     def is_single(self) -> bool:
         return self.primary_type == ReleaseType.SINGLE
@@ -500,7 +525,8 @@ class ReleaseGroup(MusicBrainzObject):
 
         #year
         if self.first_release_date is not None:
-            if r.first_release_date is not None and self.first_release_date - r.first_release_date > 3 * datetime.timedelta(days=365):
+            if r.first_release_date is not None and self.first_release_date - r.first_release_date > 3 * datetime.timedelta(
+                    days=365):
                 # _logger.debug(f"normal releases: late release, more than 3 years after initial release")
                 return False
 
@@ -508,7 +534,6 @@ class ReleaseGroup(MusicBrainzObject):
         if r.track_count > self.mode_track_count:
             # _logger.debug(f"normal release: too many track {r.track_count} vs {self.min_track_count} for release {r}")
             return False
-
 
         return True
 
@@ -585,6 +610,43 @@ class ReleaseGroup(MusicBrainzObject):
         if title_ratio < cut_off:
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
+
+    @cached_property
+    def external_urls(self) -> dict[str, str]:
+        out = {}
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.LinkReleaseGroupURL)
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkReleaseGroupURL.url))
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkReleaseGroupURL.link)
+                    .selectinload(mbdata.models.Link.link_type)
+                )
+
+                .where(mbdata.models.LinkReleaseGroupURL.release_group_id == self._db_id)
+            )
+            lrgus = session.scalars(stmt).all()
+            lrgu: mbdata.models.LinkReleaseGroupURL
+            for lrgu in lrgus:
+                url = lrgu.url.url
+                urltype = lrgu.link.link_type.link_phrase
+                if urltype not in out.keys():
+                    out[urltype] = [url]
+                else:
+                    out[urltype].append(url)
+
+        return out
+
+    @cached_property
+    def discogs_ids(self) -> list[tuple[str,int]]:
+        if "Discogs" in self.external_urls.keys():
+            urls = [u.rsplit('/')[-1] for u in self.external_urls["Discogs"]]
+            ids = [('master', int(u)) for u in urls]
+            return ids
+        return []
+
+
 
     def __str__(self):
         s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
@@ -786,6 +848,44 @@ class Release(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
+
+    @cached_property
+    def external_urls(self) -> dict[str, str]:
+        out = {}
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.LinkReleaseURL)
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkReleaseURL.url))
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkReleaseURL.link)
+                    .selectinload(mbdata.models.Link.link_type)
+                )
+
+                .where(mbdata.models.LinkReleaseURL.release_id == self._db_id)
+            )
+            lrus = session.scalars(stmt).all()
+            lru: mbdata.models.LinkReleaseGroupURL
+            for lru in lrus:
+                url = lru.url.url
+                urltype = lru.link.link_type.link_phrase
+                if urltype not in out.keys():
+                    out[urltype] = [url]
+                else:
+                    out[urltype].append(url)
+
+        return out
+
+    @cached_property
+    def discogs_ids(self) -> list[tuple[str,int]]:
+        ids = []
+        if "Discogs" in self.external_urls.keys():
+            urls = [u.rsplit('/')[-1] for u in self.external_urls["Discogs"]]
+            ids = [('release',int(u)) for u in urls]
+
+        ids += self.release_group.discogs_ids
+        return ids
+
     def __str__(self):
         s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
               (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
@@ -877,7 +977,6 @@ class Recording(MusicBrainzObject):
             self.disambiguation: str = rec.comment
             self.first_release_date: datetime.date = parse_partial_date(
                 rec.first_release.date) if rec.first_release is not None else None
-
 
     # positive: other is newer, negative: self is newer
     def is_years_older_than(self, other: "Recording|int") -> Optional[int]:
@@ -1037,7 +1136,6 @@ class Recording(MusicBrainzObject):
     def soundtracks(self) -> list[ReleaseGroup]:
         return [rg for rg in self.release_groups if rg.is_soundtrack]
 
-
     # @cached_property
     # def streams(self) -> list[str]:
     #     result = []
@@ -1122,7 +1220,7 @@ class Recording(MusicBrainzObject):
         if isinstance(item, Work):
             return self in item.performances['all']
 
-    def is_sane(self, artist_query: str|Artist, title_query: str, cut_off=70) -> bool:
+    def is_sane(self, artist_query: str | Artist, title_query: str, cut_off=70) -> bool:
         from .util import flatten_title
         if isinstance(artist_query, Artist):
             artist_sane = (artist_query in self.artists)
@@ -1148,6 +1246,33 @@ class Recording(MusicBrainzObject):
     def url(self) -> str:
         return f"https://musicbrainz.org/recording/{self.id}"
 
+    @cached_property
+    def external_urls(self) -> dict[str, str]:
+        out = {}
+        with get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.LinkRecordingURL)
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkRecordingURL.url))
+                .options(
+                    sa.orm.selectinload(mbdata.models.LinkRecordingURL.link)
+                    .selectinload(mbdata.models.Link.link_type)
+                )
+
+                .where(mbdata.models.LinkRecordingURL.recording_id == self._db_id)
+            )
+            lrus = session.scalars(stmt).all()
+            lru: mbdata.models.LinkReleaseGroupURL
+            for lru in lrus:
+                url = lru.url.url
+                urltype = lru.link.link_type.link_phrase
+                if urltype not in out.keys():
+                    out[urltype] = [url]
+                else:
+                    out[urltype].append(url)
+
+        return out
+
     def __hash__(self):
         return hash(self.id)
 
@@ -1172,7 +1297,6 @@ class Medium(MusicBrainzObject):
             else:
                 self.format = m.format.name
                 self.format_id = m.format_id
-
 
     @cached_property
     def release(self) -> Release:
@@ -1251,7 +1375,8 @@ class Track(MusicBrainzObject):
                 return self.release < other.release
 
     def __str__(self):
-        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'" + (f" [{self.release.release_group.first_release_date.year}]" if self.release.release_group.first_release_date is not None else "")
+        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'" + (
+            f" [{self.release.release_group.first_release_date.year}]" if self.release.release_group.first_release_date is not None else "")
 
     def __contains__(self, item):
         if isinstance(item, Artist):
@@ -1421,17 +1546,20 @@ class MusicbrainzSingleResult:
 
 
 class MusicbrainzListResult(list[MusicbrainzSingleResult]):
-    def sort(self, *, key = None, reverse = False, live:bool = False, year: int = None):
+    def sort(self, *, key=None, reverse=False, live: bool = False, year: int = None):
         if live:
             if year is None:
                 super().sort(key=lambda x: (x.recording.is_live, x))
             else:
-                super().sort(key=lambda x: (x.recording.is_live, _abs_for_none(x.release_group.is_years_older_than(year)), _abs_for_none(x.recording.is_years_older_than(year)), x))
+                super().sort(key=lambda x: (
+                x.recording.is_live, _abs_for_none(x.release_group.is_years_older_than(year)),
+                _abs_for_none(x.recording.is_years_older_than(year)), x))
         else:
             if year is None:
                 super().sort()
             else:
                 super().sort(key=lambda x: (_abs_for_none(x.recording.is_years_older_than(year)), x))
+
 
 class MusicbrainzSearchResult:
 
@@ -1439,7 +1567,7 @@ class MusicbrainzSearchResult:
         self._best_result_type = None
         self._dict: dict[SearchType, MusicbrainzListResult] = {}
         self.live = live
-        self.year = year # year of release if known
+        self.year = year  # year of release if known
 
     def add_result(self, search_type: SearchType, result: MusicbrainzListResult) -> None:
         self._dict[search_type] = result
@@ -1550,7 +1678,6 @@ class MusicbrainzSearchResult:
             _logger.debug("No other release found, but found something outside my predefined categories")
             choice = SearchType.ALL
 
-
         # should never get here
         if choice is None:
             raise NotFoundError("Was not able to determine a best result for non-empy result set")
@@ -1576,13 +1703,15 @@ class MusicbrainzSearchResult:
         return "(Search result) best result:" + best_track.__repr__() + "  of type " + self.best_result_type
 
     @classmethod
-    def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None, year: Optional[int] = None) -> "MusicbrainzSearchResult":
+    def result_from_recording(cls, recording: Recording, canonical_result: Optional[MusicbrainzListResult] = None,
+                              year: Optional[int] = None) -> "MusicbrainzSearchResult":
         from pymusicbrainz import search_song_canonical
 
         result = MusicbrainzSearchResult(live=recording.is_live, year=year)
 
         if canonical_result is None:
-            canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title, live=recording.is_live)
+            canonical_result = search_song_canonical(recording.artist_credit_phrase, recording.title,
+                                                     live=recording.is_live)
         result.add_result(search_type=SearchType.CANONICAL, result=canonical_result)
 
         if recording.is_live:
@@ -1590,22 +1719,27 @@ class MusicbrainzSearchResult:
         else:
             album_options = recording.studio_albums
         if len(album_options) > 0:
-            album_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in album_options])
+            album_result = MusicbrainzListResult(
+                [MusicbrainzSingleResult(release_group=x, recording=recording) for x in album_options])
             result.add_result(search_type=SearchType.STUDIO_ALBUM, result=album_result)
 
         if len(recording.soundtracks) > 0:
-            soundtrack_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.soundtracks])
+            soundtrack_result = MusicbrainzListResult(
+                [MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.soundtracks])
             result.add_result(search_type=SearchType.SOUNDTRACK, result=soundtrack_result)
 
         if len(recording.eps) > 0:
-            ep_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.eps])
+            ep_result = MusicbrainzListResult(
+                [MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.eps])
             result.add_result(search_type=SearchType.EP, result=ep_result)
 
         if len(recording.singles) > 0:
-            single_result = MusicbrainzListResult([MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.singles])
+            single_result = MusicbrainzListResult(
+                [MusicbrainzSingleResult(release_group=x, recording=recording) for x in recording.singles])
             result.add_result(search_type=SearchType.SINGLE, result=single_result)
 
         return result
+
 
 def find_track_for_release_recording(release: Release, recording: Recording) -> Track:
     potential_results = []
