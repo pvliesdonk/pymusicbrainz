@@ -350,13 +350,28 @@ class Artist(MusicBrainzObject):
             lru: mbdata.models.LinkReleaseGroupURL
             for lru in lrus:
                 url = lru.url.url
-                urltype = lru.link.link_type.link_phrase
+                urltype = str(lru.link.link_type.link_phrase)
                 if urltype not in out.keys():
                     out[urltype] = [url]
                 else:
                     out[urltype].append(url)
 
         return out
+
+    @cached_property
+    def discogs_ids(self) -> list[tuple[str, int]]:
+        if "Discogs" in self.external_urls.keys():
+            urls = [u.rsplit('/')[-1] for u in self.external_urls["Discogs"]]
+            ids = [('artist', int(u)) for u in urls]
+            return ids
+        return []
+
+    @cached_property
+    def spotify_link(self) -> list[str]:
+        urls = []
+        if "stream {video} for free" in self.external_urls.keys():
+            urls = [u for u in self.external_urls["stream {video} for free"] if "open.spotify.com" in u]
+        return urls
 
     def __str__(self):
         if self.disambiguation is not None:
@@ -612,7 +627,7 @@ class ReleaseGroup(MusicBrainzObject):
         return artist_ratio > cut_off and title_ratio > cut_off
 
     @cached_property
-    def external_urls(self) -> dict[str, str]:
+    def external_urls(self) -> dict[str, list[str]]:
         out = {}
         with get_db_session() as session:
             stmt = (
@@ -629,8 +644,8 @@ class ReleaseGroup(MusicBrainzObject):
             lrgus = session.scalars(stmt).all()
             lrgu: mbdata.models.LinkReleaseGroupURL
             for lrgu in lrgus:
-                url = lrgu.url.url
-                urltype = lrgu.link.link_type.link_phrase
+                url: str = str(lrgu.url.url)
+                urltype: str = str(lrgu.link.link_type.link_phrase)
                 if urltype not in out.keys():
                     out[urltype] = [url]
                 else:
@@ -639,14 +654,39 @@ class ReleaseGroup(MusicBrainzObject):
         return out
 
     @cached_property
-    def discogs_ids(self) -> list[tuple[str,int]]:
+    def discogs_ids(self) -> list[tuple[str, int]]:
         if "Discogs" in self.external_urls.keys():
             urls = [u.rsplit('/')[-1] for u in self.external_urls["Discogs"]]
             ids = [('master', int(u)) for u in urls]
             return ids
         return []
 
+    @cached_property
+    def spotify_link(self) -> list[str]:
+        urls = []
+        if "stream {video} for free" in self.external_urls.keys():
+            urls = [u for u in self.external_urls["stream {video} for free"] if "open.spotify.com" in u]
+        return urls
 
+    @cache
+    def find_any_spotify_link(self) -> list[str]:
+        urls = []
+        urls += self.spotify_link
+        if len(urls) > 0:
+            return urls
+        for rels in self.normal_releases:
+            rels_urls = rels.spotify_link
+            for rels_url in rels_urls:
+                if rels_urls not in urls:
+                    urls.append(rels_url)
+        if len(urls) > 0:
+            return urls
+        for rels in self.extended_releases:
+            rels_urls = rels.spotify_link
+            for rels_url in rels_urls:
+                if rels_urls not in urls:
+                    urls.append(rels_url)
+        return urls
 
     def __str__(self):
         s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
@@ -848,9 +888,8 @@ class Release(MusicBrainzObject):
             _logger.warning(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
-
     @cached_property
-    def external_urls(self) -> dict[str, str]:
+    def external_urls(self) -> dict[str, list[str]]:
         out = {}
         with get_db_session() as session:
             stmt = (
@@ -867,8 +906,8 @@ class Release(MusicBrainzObject):
             lrus = session.scalars(stmt).all()
             lru: mbdata.models.LinkReleaseGroupURL
             for lru in lrus:
-                url = lru.url.url
-                urltype = lru.link.link_type.link_phrase
+                url: str = lru.url.url
+                urltype: str = lru.link.link_type.link_phrase
                 if urltype not in out.keys():
                     out[urltype] = [url]
                 else:
@@ -877,14 +916,25 @@ class Release(MusicBrainzObject):
         return out
 
     @cached_property
-    def discogs_ids(self) -> list[tuple[str,int]]:
+    def discogs_ids(self) -> list[tuple[str, int]]:
         ids = []
         if "Discogs" in self.external_urls.keys():
             urls = [u.rsplit('/')[-1] for u in self.external_urls["Discogs"]]
-            ids = [('release',int(u)) for u in urls]
+            ids = [('release', int(u)) for u in urls]
 
         ids += self.release_group.discogs_ids
         return ids
+
+    @cached_property
+    def spotify_link(self) -> list[str]:
+        urls = []
+        if "stream {video} for free" in self.external_urls.keys():
+            urls = [u for u in self.external_urls["stream {video} for free"] if "open.spotify.com" in u]
+        urls += self.release_group.spotify_link
+        return urls
+
+    def has_spotify_link(self) -> bool:
+        return len(self.spotify_link) > 0
 
     def __str__(self):
         s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
@@ -929,6 +979,12 @@ class Release(MusicBrainzObject):
             diff = self.is_years_older_than(other)
             if diff is not None:
                 return diff > 2
+
+            # prioritize release with spotify link
+            if self.has_spotify_link() and not other.has_spotify_link():
+                return True
+            elif other.has_spotify_link and not self.has_spotify_link():
+                return False
 
             if self.first_release_date is not None:
                 if other.first_release_date is not None:
@@ -1552,8 +1608,8 @@ class MusicbrainzListResult(list[MusicbrainzSingleResult]):
                 super().sort(key=lambda x: (x.recording.is_live, x))
             else:
                 super().sort(key=lambda x: (
-                x.recording.is_live, _abs_for_none(x.release_group.is_years_older_than(year)),
-                _abs_for_none(x.recording.is_years_older_than(year)), x))
+                    x.recording.is_live, _abs_for_none(x.release_group.is_years_older_than(year)),
+                    _abs_for_none(x.recording.is_years_older_than(year)), x))
         else:
             if year is None:
                 super().sort()
