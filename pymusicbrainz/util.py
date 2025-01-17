@@ -10,7 +10,8 @@ import sqlalchemy as sa
 import mbdata.models
 from unidecode import unidecode
 
-from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID, MBID, WorkID, PerformanceWorkAttributes
+from .datatypes import RecordingID, ArtistID, ReleaseGroupID, ReleaseID, MBID, WorkID, PerformanceWorkAttributes, \
+    TrackID
 from .dataclasses import ReleaseGroup, Recording, Artist, Release, Work
 from .exceptions import NotFoundError, MBIDNotExistsError
 from .object_cache import get_artist, get_release_group, get_release, get_recording, get_work
@@ -221,6 +222,26 @@ def recording_redirect(rec_id: str | RecordingID) -> RecordingID:
             return rec_id
         else:
             return recording_redirect(str(res))
+
+def track_redirect(track_id: str | TrackID) -> TrackID:
+    from pymusicbrainz import get_db_session
+
+    if isinstance(track_id, str):
+        track_id = TrackID(track_id)
+
+    with get_db_session() as session:
+        stmt = (
+            sa.select(mbdata.models.Track.gid)
+            .join_from(mbdata.models.TrackGIDRedirect, mbdata.models.Track,
+                       mbdata.models.TrackGIDRedirect.track)
+            .where(mbdata.models.TrackGIDRedirect.gid == str(track_id))
+        )
+        res = session.scalar(stmt)
+        if res is None:
+            return track_id
+        else:
+            return track_redirect(str(res))
+
 
 
 _uuid_match = re.compile(r'[a-z0-9]{8}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{4}-?[a-z0-9]{12}')
