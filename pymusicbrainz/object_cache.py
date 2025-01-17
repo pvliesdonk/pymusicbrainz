@@ -138,7 +138,11 @@ def get_track(in_obj: TrackID | str | mbdata.models.Track | uuid.UUID) -> Track:
     if in_obj in _object_cache.keys():
         return _object_cache[in_obj]
     else:
-        a = Track(in_obj)
+        try:
+            a = Track(in_obj)
+        except MBIDNotExistsError:
+            from pymusicbrainz.util import track_redirect
+            a = Track(track_redirect(in_obj))
         _object_cache[a.id] = a
         return a
 

@@ -1398,6 +1398,9 @@ class Track(MusicBrainzObject):
                     in_obj = TrackID(in_obj)
                 stmt = sa.select(mbdata.models.Track).where(mbdata.models.Track.gid == str(in_obj))
                 tr: mbdata.models.Track = session.scalar(stmt)
+                if tr is None:
+                    raise MBIDNotExistsError(f"No Track with ID '{str(in_obj)}'")
+
 
             self.id: TrackID = TrackID(str(tr.gid))
             self._db_id: int = tr.id
