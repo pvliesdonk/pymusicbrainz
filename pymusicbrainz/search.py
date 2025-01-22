@@ -420,7 +420,11 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
             _logger.warning("Invalid response from acoustid server")
             continue
 
-        recordings = sorted(result["recordings"], key=lambda x: x['sources'] if 'sources' in x.keys() else 1, reverse=True)
+        potentials = [r for r in result["recordings"] if ('sources' in r.keys() and 'id' in r.keys())]
+        if len(potentials) == 0:
+            continue
+
+        recordings = sorted(potentials, key=lambda x: x['sources'], reverse=True)
         rec = recordings[0]
 
         redirected_id = recording_redirect(rec['id'])
@@ -429,6 +433,7 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
         if redirected_id not in recording_ids:
             _logger.debug(f"Acoustid: adding {recording} ({rec['sources']} sources)")
             recording_ids.append(redirected_id)
+
     return recording_ids
 
 
