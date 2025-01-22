@@ -82,7 +82,7 @@ def search_song_musicbrainz(
                 #    _logger.warning(f"Reach maximum of {limit} result")
                 #    break
             except MBApiError as ex:
-                _logger.warning(f"Could not get recording {str(rid)}")
+                _logger.debug(f"Could not get recording {str(rid)}")
 
         result = sorted(result, key=lambda x: x[1], reverse=True)
         result = [x[0] for x in result]
