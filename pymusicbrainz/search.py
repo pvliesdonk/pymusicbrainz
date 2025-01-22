@@ -420,7 +420,7 @@ def recording_id_from_fingerprint(file: pathlib.Path, cut_off: int = None) -> li
             _logger.warning("Invalid response from acoustid server")
             continue
 
-        recordings = sorted(result["recordings"], key=lambda x: x['sources'], reverse=True)
+        recordings = sorted(result["recordings"], key=lambda x: x['sources'] if 'sources' in x.keys() else 1, reverse=True)
         rec = recordings[0]
 
         redirected_id = recording_redirect(rec['id'])
