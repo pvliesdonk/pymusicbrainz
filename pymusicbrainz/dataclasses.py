@@ -616,14 +616,14 @@ class ReleaseGroup(MusicBrainzObject):
             score_cutoff=cut_off
         )
         if artist_ratio < cut_off:
-            _logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         title_ratio = rapidfuzz.process.extractOne(
             flatten_title(album_name=title_query),
             [flatten_title(album_name=self.title)] + [flatten_title(album_name=x) for x in self.aliases],
             processor=rapidfuzz.utils.default_process
         )[1]
         if title_ratio < cut_off:
-            _logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            _logger.debug(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
     @cached_property
@@ -878,14 +878,14 @@ class Release(MusicBrainzObject):
             score_cutoff=cut_off
         )
         if artist_ratio < cut_off:
-            _logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         title_ratio = rapidfuzz.process.extractOne(
             flatten_title(recording_name=title_query),
             [flatten_title(recording_name=self.title)] + [flatten_title(recording_name=x) for x in self.aliases],
             processor=rapidfuzz.utils.default_process
         )[1]
         if title_ratio < cut_off:
-            _logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            _logger.debug(f"{self} is not a sane candidate for title {title_query}")
         return artist_ratio > cut_off and title_ratio > cut_off
 
     @cached_property
@@ -1292,9 +1292,9 @@ class Recording(MusicBrainzObject):
         )[1]
 
         if not artist_sane:
-            _logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            _logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         elif title_ratio < cut_off:
-            _logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            _logger.debug(f"{self} is not a sane candidate for title {title_query}")
         else:
             return True
 
@@ -1580,7 +1580,7 @@ class MusicbrainzSingleResult:
             self.track = track
 
         if self.release.release_group.id != self.release_group.id:
-            _logger.warning(f"Git a strange combination of {self.release} with {self.release_group}. Fixing.")
+            _logger.debug(f"Git a strange combination of {self.release} with {self.release_group}. Fixing.")
             self.release_group = self.release.release_group
 
     def is_years_older_than(self, other: "MusicbrainzSingleResult") -> Optional[int]:
