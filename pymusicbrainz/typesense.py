@@ -7,8 +7,7 @@ from requests import ReadTimeout
 from typesense.exceptions import TypesenseClientError
 from urllib3.exceptions import ReadTimeoutError
 
-from . import constants
-from .datatypes import ArtistID, ReleaseID, RecordingID
+from . import constants, ArtistID, ReleaseID, RecordingID
 from .util import flatten_title
 
 

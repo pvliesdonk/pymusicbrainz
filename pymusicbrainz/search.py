@@ -7,9 +7,10 @@ import acoustid
 import musicbrainzngs
 
 from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
-from .dataclasses import Recording, Artist, MusicbrainzSearchResult, \
+from .dataclasses_old import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
-from .datatypes import ReleaseStatus, RecordingID, ArtistID, SearchType, ReleaseType
+from .datatypes import ReleaseStatus, SearchType, ReleaseType
+from . import ArtistID, RecordingID
 from .exceptions import MBApiError, IllegalArgumentError, IllegaleRecordingReleaseGroupCombination
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup

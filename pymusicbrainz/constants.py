@@ -1,6 +1,7 @@
 import urllib3
 
-from .datatypes import ArtistID, ReleaseType
+from .datatypes import ReleaseType
+from . import ArtistID
 
 DEFAULT_APP: str = "My Tagger"
 DEFAULT_VERSION: str = "0.1"

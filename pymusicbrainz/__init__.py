@@ -1,5 +1,5 @@
-from .datatypes import (ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, MediumID, TrackID, WorkID)
-
+from .datatypes import (WorkID)
+from .dataclasses.identifiers import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, MediumID, TrackID, WorkID
 
 from .constants import UNKNOWN_ARTIST_ID, VA_ARTIST_ID
 
@@ -16,7 +16,7 @@ from .search import (
 
 )
 
-from .dataclasses import (
+from .dataclasses_old import (
     Artist, Medium, Track, Recording, Work, Release, ReleaseGroup, MusicbrainzSingleResult, MusicbrainzListResult,
     MusicbrainzSearchResult
 )

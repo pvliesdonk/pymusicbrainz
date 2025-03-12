@@ -1,7 +1,7 @@
 import logging
 import pathlib
 
-
+import pymusicbrainz.dataclasses_old.identifiers
 from context import pymusicbrainz
 from pymusicbrainz.datatypes import ReleaseType
 
@@ -19,11 +19,11 @@ pymusicbrainz.configure_musicbrainzngs()
 pymusicbrainz.configure_typesense()
 pymusicbrainz.configure_object_cache(pathlib.Path("object_cache.db"))
 
-seed = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
-seed2 = pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
+seed = pymusicbrainz.dataclasses.identifiers.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
+seed2 = pymusicbrainz.dataclasses.identifiers.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d")
 eq = (seed == seed2)
 
-sfdgdsfg = pymusicbrainz.search_song(seed_id=pymusicbrainz.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
+sfdgdsfg = pymusicbrainz.search_song(seed_id=pymusicbrainz.dataclasses.identifiers.RecordingID("2bb74cf7-acd5-4f7b-9be1-1c9eceb96a3d"))
 
 wjefefhiuh = pymusicbrainz.search_song('Justin Timberlake', 'CAN’T STOP THE FEELING!')
 
@@ -104,7 +104,8 @@ g = pymusicbrainz.search_song_canonical("DJ Paul Elstak", "Rainbow in the Sky")
 
 h = pymusicbrainz.search_song_musicbrainz("DJ Paul Elstak", "Rainbow in the Sky")
 
-i = pymusicbrainz.search_by_recording_id(pymusicbrainz.RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
+i = pymusicbrainz.search_by_recording_id(
+    pymusicbrainz.dataclasses.identifiers.RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11"))
 
 j = pymusicbrainz.search_song("DJ Paul Elstak", "Rainbow in the Sky")
 j_result = j.get_best_result()
