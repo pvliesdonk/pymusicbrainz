@@ -5,8 +5,9 @@ import uuid
 
 import mbdata.models
 
-from .dataclasses_old import Artist, ReleaseGroup, Release, Recording, Track, Work, Medium, MusicBrainzObject
-from . import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID
+from .dataclasses_old import Artist, Recording, MusicBrainzObject
+from . import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID, ReleaseGroup, Release, Medium, Track, \
+    Work
 from .dataclasses_old.identifiers import MBID
 from .exceptions import MBApiError, MBIDNotExistsError, NotFoundError
 

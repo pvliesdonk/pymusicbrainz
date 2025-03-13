@@ -4,7 +4,7 @@ import mbdata.models
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from .constants import DEFAULT_DB_URI
+from ..constants import DEFAULT_DB_URI
 
 _engine = None
 _Session = None

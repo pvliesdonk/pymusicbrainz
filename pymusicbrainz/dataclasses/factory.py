@@ -1,11 +1,12 @@
 import logging
-import pathlib
 import shelve
 import uuid
-from typing import Mapping, MutableMapping
+from abc import ABC, abstractmethod
+from typing import MutableMapping
 
+import pymusicbrainz.dataclasses.work
 from .base import MusicBrainzObject
-from .identifiers import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID, MBID
+from pymusicbrainz.datatypes.identifiers import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, TrackID, WorkID, MBID
 from .artist import Artist
 
 
@@ -62,11 +63,18 @@ class MusicbrainzDataFactory(object):
         # TODO: implement
         raise NotImplementedError
 
-    def get_track(self, in_obj: TrackID | str | mbdata.models.Track | uuid.UUID) -> Track:
+    def get_track(self, in_obj: TrackID | str | pymusicbrainz.dataclasses.track.Track | uuid.UUID) -> Track:
         # TODO: implement
         raise NotImplementedError
 
-    def get_work(self, in_obj: WorkID | str | mbdata.models.Work | uuid.UUID) -> Work:
+    def get_work(self, in_obj: WorkID | str | pymusicbrainz.dataclasses.work.Work | uuid.UUID) -> Work:
         #TODO: implement
         raise NotImplementedError
 
+
+class ObjectFactory(ABC):
+
+    @classmethod
+    @abstractmethod
+    def get_object(cls, in_obj: MBID | str | uuid.UUID):
+        pass

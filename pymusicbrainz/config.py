@@ -4,7 +4,8 @@ import musicbrainzngs
 import urllib3
 
 from .constants import (DEFAULT_APP, DEFAULT_VERSION, DEFAULT_CONTACT, DEFAULT_API_URL, DEFAULT_HTTPS, DEFAULT_RATE_LIMIT)
-from . import db, typesense
+from . import typesense
+from .database import db
 
 _logger = logging.getLogger(__name__)
 

@@ -6,10 +6,10 @@ from typing import Sequence, Mapping
 import acoustid
 import rapidfuzz
 
-from . import RecordingID
+from . import RecordingID, ReleaseGroup, Release, Track
 from .exceptions import MBApiError, NotFoundError
 from .constants import ACOUSTID_APIKEY
-from .dataclasses_old import ReleaseGroup, Recording, Release, Track, Artist, find_track_for_release_recording, \
+from .dataclasses_old import Recording, Artist, find_track_for_release_recording, \
     find_track_release_for_release_group_recording
 from .object_cache import get_recording
 from .search import _search_typesense, search_artist_musicbrainz, search_song_musicbrainz, _logger

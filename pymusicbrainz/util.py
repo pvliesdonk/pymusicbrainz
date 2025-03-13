@@ -11,9 +11,9 @@ import mbdata.models
 from unidecode import unidecode
 
 from .datatypes import PerformanceWorkAttributes
-from . import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID
+from . import ArtistID, ReleaseGroupID, ReleaseID, RecordingID, WorkID, ReleaseGroup, Work
 from .dataclasses_old.identifiers import MBID
-from .dataclasses_old import ReleaseGroup, Recording, Artist, Release, Work
+from .dataclasses_old import Recording, Artist, Release
 from .exceptions import NotFoundError, MBIDNotExistsError
 from .object_cache import get_artist, get_release_group, get_release, get_recording, get_work
 

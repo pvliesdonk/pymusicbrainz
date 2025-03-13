@@ -1,31 +1,34 @@
 import logging
-from abc import ABC, abstractmethod, abstractproperty
+from abc import abstractmethod
 from functools import cached_property, cache
 
 import mbdata.models
 import rapidfuzz
 import sqlalchemy as sa
 
-from .base import MusicBrainzObject
-from .. import ArtistID, get_db_session
-from ..datatypes import ReleaseType, SecondaryTypeList
+from . import releasegroup, release, recording, medium, track, work, base, factory
+from ..datatypes import ArtistID, ReleaseGroupID, ReleaseType, SecondaryTypeList
 
 
-class Artist(MusicBrainzObject):
-
+class Artist(base.MusicBrainzObject):
     _logger: logging.Logger = logging.getLogger(__name__)
-
 
     def __init__(self, in_obj: ArtistID | str, factory: "ArtistFactory") -> None:
 
         if isinstance(in_obj, str):
             in_obj = ArtistID(in_obj)
+
         self._id = in_obj
+
 
 
     @property
     def id(self) -> ArtistID:
         return self._id
+
+    @property
+    def type(self) -> str:
+        return "artist"
 
     @property
     @abstractmethod
@@ -47,8 +50,6 @@ class Artist(MusicBrainzObject):
     def artist_type(self) -> str:
         pass
 
-
-
     @property
     @abstractmethod
     def aliases(self) -> list[str]:
@@ -64,7 +65,7 @@ class Artist(MusicBrainzObject):
                            primary_type: ReleaseType,
                            secondary_types: SecondaryTypeList,
                            credited: bool,
-                           contributing: bool) -> list["ReleaseGroup"]:
+                           contributing: bool) -> list["releasegroup.ReleaseGroup"]:
         pass
 
     @abstractmethod
@@ -76,7 +77,7 @@ class Artist(MusicBrainzObject):
         pass
 
     @property
-    def release_groups(self) -> list["ReleaseGroup"]:
+    def release_groups(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALL,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -88,7 +89,7 @@ class Artist(MusicBrainzObject):
                                           contributing=False)
 
     @property
-    def albums(self) -> list["ReleaseGroup"]:
+    def albums(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -100,7 +101,7 @@ class Artist(MusicBrainzObject):
                                           contributing=False)
 
     @property
-    def singles(self) -> list["ReleaseGroup"]:
+    def singles(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.SINGLE,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -112,7 +113,7 @@ class Artist(MusicBrainzObject):
                                           contributing=False)
 
     @property
-    def eps(self) -> list["ReleaseGroup"]:
+    def eps(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.EP,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -124,7 +125,7 @@ class Artist(MusicBrainzObject):
                                           contributing=False)
 
     @property
-    def studio_albums(self) -> list["ReleaseGroup"]:
+    def studio_albums(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
@@ -136,7 +137,7 @@ class Artist(MusicBrainzObject):
                                        contributing=False)
 
     @property
-    def soundtracks(self) -> list["ReleaseGroup"]:
+    def soundtracks(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                        credited=True, contributing=True)
@@ -168,12 +169,6 @@ class Artist(MusicBrainzObject):
         else:
             return f"{self.name} [{self.id}]"
 
-    def __rich__(self):
-        if self.disambiguation is not None:
-            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\] ({escape(self.disambiguation)})"
-        else:
-            return f"{escape(self.name)} \[[link={self.url}]{self.id}[/link]\]"
-
     def __eq__(self, other):
         if isinstance(other, Artist):
             return self.id == other.id
@@ -184,25 +179,38 @@ class Artist(MusicBrainzObject):
         return self.sort_name < other.sort_name
 
     def __contains__(self, item):
-        if isinstance(item, Release):
+        if isinstance(item, release.Release):
             return self in item.artists
-        if isinstance(item, ReleaseGroup):
+        if isinstance(item, releasegroup.ReleaseGroup):
             return self in item.artists
-        if isinstance(item, Recording):
+        if isinstance(item, recording.Recording):
             return self in item.artists
-        if isinstance(item, Medium):
+        if isinstance(item, medium.Medium):
             return self in item.release.artists
-        if isinstance(item, Track):
+        if isinstance(item, track.Track):
             return self in item.artists
-        if isinstance(item, Work):
+        if isinstance(item, work.Work):
             raise NotImplementedError
 
     def __hash__(self):
         return hash(self.id)
 
 
+class ArtistFactory(factory.ObjectFactory):
+    pass
+
+
+class ArtistAPI(Artist):
+    pass
+
+
+
+class ArtistAPIFactory(ArtistFactory):
+    pass
+
+
 class ArtistDB(Artist):
-    """Class representing an artist"""
+    """Class representing an artist backed by """
 
     def __init__(self,
                  in_obj: ArtistID | mbdata.models.Artist | str) -> None:
@@ -352,7 +360,7 @@ class ArtistDB(Artist):
                            primary_type: ReleaseType,
                            secondary_types: SecondaryTypeList,
                            credited: bool,
-                           contributing: bool) -> list["ReleaseGroup"]:
+                           contributing: bool) -> list["releasegroup.ReleaseGroup"]:
         """Get all release groups for this artist
 
         :param primary_type: only get release groups with this primary type
@@ -376,7 +384,7 @@ class ArtistDB(Artist):
                 self._get_release_group_db_items(primary_type, secondary_types, credited, contributing)]
 
     @cached_property
-    def release_groups(self) -> list["ReleaseGroup"]:
+    def release_groups(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALL,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -388,7 +396,7 @@ class ArtistDB(Artist):
                                           contributing=False)
 
     @cached_property
-    def albums(self) -> list["ReleaseGroup"]:
+    def albums(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -400,7 +408,7 @@ class ArtistDB(Artist):
                                           contributing=False)
 
     @cached_property
-    def singles(self) -> list["ReleaseGroup"]:
+    def singles(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.SINGLE,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -412,7 +420,7 @@ class ArtistDB(Artist):
                                           contributing=False)
 
     @cached_property
-    def eps(self) -> list["ReleaseGroup"]:
+    def eps(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.EP,
                                        secondary_types=SecondaryTypeList([ReleaseType.ALL]), credited=True,
                                        contributing=False)
@@ -424,7 +432,7 @@ class ArtistDB(Artist):
                                           contributing=False)
 
     @cached_property
-    def studio_albums(self) -> list["ReleaseGroup"]:
+    def studio_albums(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.NONE]), credited=True,
                                        contributing=False)
@@ -436,7 +444,7 @@ class ArtistDB(Artist):
                                        contributing=False)
 
     @cached_property
-    def soundtracks(self) -> list["ReleaseGroup"]:
+    def soundtracks(self) -> list["releasegroup.ReleaseGroup"]:
         return self.get_release_groups(primary_type=ReleaseType.ALBUM,
                                        secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
                                        credited=True, contributing=True)

@@ -1,6 +1,6 @@
 import uuid
 
-from pymusicbrainz.datatypes import _logger
+from pymusicbrainz.datatypes_old import _logger
 
 
 class MBID:

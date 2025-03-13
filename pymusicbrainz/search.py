@@ -6,11 +6,12 @@ from typing import Sequence, Optional
 import acoustid
 import musicbrainzngs
 
-from .constants import VA_ARTIST_ID, UNKNOWN_ARTIST_ID, ACOUSTID_APIKEY, ACOUSTID_META
+from .constants import ACOUSTID_APIKEY, ACOUSTID_META
 from .dataclasses_old import Recording, Artist, MusicbrainzSearchResult, \
     MusicbrainzSingleResult, MusicbrainzListResult
-from .datatypes import ReleaseStatus, SearchType, ReleaseType
-from . import ArtistID, RecordingID
+from .datatypes_old import SearchType
+from .datatypes import ReleaseType, ReleaseStatus
+from . import ArtistID, RecordingID, UNKNOWN_ARTIST_ID, VA_ARTIST_ID
 from .exceptions import MBApiError, IllegalArgumentError, IllegaleRecordingReleaseGroupCombination
 from .object_cache import get_recording, get_artist, get_release
 from .typesense import do_typesense_lookup

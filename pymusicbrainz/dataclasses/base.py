@@ -1,6 +1,6 @@
-from abc import ABC, abstractproperty, abstractmethod
+from abc import ABC, abstractmethod
 
-from .identifiers import MBID
+from pymusicbrainz.datatypes.identifiers import MBID
 
 
 class MusicBrainzObject(ABC):
@@ -11,9 +11,21 @@ class MusicBrainzObject(ABC):
     def id(self) -> MBID:
         pass
 
+    @property
+    @abstractmethod
+    def type(self) -> str:
+        pass
+
+    @property
+    @abstractmethod
+    def backing(self) -> str:
+        pass
+
+
     def __repr__(self):
         return f"{self.__class__.__name__}({self.__str__()})"
 
     @property
     def url(self) -> str:
-        return f"https://musicbrainz.org/artist/{self.id}"
+        return f"https://musicbrainz.org/{self.type}/{self.id}"
+
