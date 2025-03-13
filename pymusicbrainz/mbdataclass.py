@@ -1,10 +1,19 @@
 from abc import ABC
 from dataclasses import dataclass
 
+from . import identifiers, factory
+
 
 @dataclass
 class MBDataObject(ABC):
-    pass
+
+    id: identifiers.MBID
+    factory: factory.MBFactory
+
+    @property
+    def type(self) -> str:
+        return self.__class__.__name__.lower()
+
 
 
 @dataclass
