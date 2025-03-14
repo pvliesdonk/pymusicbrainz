@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from .identifiers import ArtistID
 
 UNKNOWN_ARTIST_ID = ArtistID("125ec42a-7229-4250-afc5-e057484327fe")

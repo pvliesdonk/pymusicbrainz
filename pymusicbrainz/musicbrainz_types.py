@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 
 
@@ -25,12 +27,14 @@ class ReleaseType(enum.StrEnum):
     ALL = "All"
     NONE = "None"
 
+
 PRIMARY_TYPES = {
     ReleaseType.ALBUM: 1,
     ReleaseType.SINGLE: 2,
     ReleaseType.EP: 3,
     ReleaseType.OTHER: 11,
     ReleaseType.BROADCAST: 12}
+
 
 class SecondaryTypeList(list[ReleaseType]):
     def __hash__(self):
@@ -56,12 +60,14 @@ SECONDARY_TYPES = {
     ReleaseType.FIELDRECORDING: 12
 }
 
+
 class ReleaseStatus(enum.StrEnum):
     """Constants for the various Musicbrainz release statuses"""
-    OFFICIAL = "Official"
-    PROMOTION = "Promotion"
-    BOOTLEG = "Bootleg"
-    PSEUDO = "Pseudo-Release"
+    OFFICIAL = "official"
+    PROMOTION = "promotion"
+    BOOTLEG = "bootleg"
+    PSEUDO = "pseudo-release"
+
 
 class PerformanceWorkAttributes(enum.StrEnum):
     ACAPPELLA = "acappella"

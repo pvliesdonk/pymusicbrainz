@@ -18,3 +18,5 @@ class IllegaleRecordingReleaseGroupCombination(MBApiError):
     pass
 
 
+class FactoryNotAvailable(MBApiError):
+    pass

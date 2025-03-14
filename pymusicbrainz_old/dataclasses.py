@@ -69,7 +69,7 @@ class Artist(MusicBrainzObject):
 
     @cached_property
     def country(self) -> str|None:
-        from pymusicbrainz.util import area_to_country
+        from pymusicbrainz_old.util import area_to_country
         with get_db_session() as session:
             artist: mbdata.models.Artist = session.get(mbdata.models.Artist, self._db_id)
             result = None
