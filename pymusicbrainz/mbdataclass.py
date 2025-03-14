@@ -28,15 +28,14 @@ class MBDataObject(ABC):
 @dataclass
 class Artist(MBDataObject):
     id: identifiers.ArtistID
-
     name: str
     sort_name: str
     disambiguation: str
 
-    _db_id: Optional[str] = None
+    _db_id: Optional[str] = field(default=None)
     aliases: list[str] = field(default_factory=list)
-    artist_type: Optional[str] = None
-    country: Optional[str] = None
+    artist_type: Optional[str] = field(default=None)
+    country: Optional[str] = field(default=None)
 
     _logger: logging.Logger = logging.getLogger(__name__)
 
@@ -77,6 +76,15 @@ class Artist(MBDataObject):
         if artist_ratio < cut_off:
             self._logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
         return artist_ratio > cut_off
+
+    def __str__(self):
+        if self.disambiguation is not None:
+            return f"{self.name} [{self.id}] ({self.disambiguation})"
+        else:
+            return f"{self.name} [{self.id}]"
+
+    def __repr__(self):
+        return f"Artist(id={self.id}, name={self.name})"
 
     def __eq__(self, other):
         if isinstance(other, Artist):

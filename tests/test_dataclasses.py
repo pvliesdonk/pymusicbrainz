@@ -30,15 +30,15 @@ db_factory = pymusicbrainz.factory.DBFactory()
 artist_db = db_factory.get_artist(a_id)
 print(artist_db)
 
-release_group_db = db_factory.get_release_group(rg_id)
-print(release_group_db)
+#release_group_db = db_factory.get_release_group(rg_id)
+#print(release_group_db)
 
 api_factory = pymusicbrainz.factory.APIFactory()
 artist_api = api_factory.get_artist(a_id)
 print(artist_api)
 
-release_group_api = api_factory.get_release_group(rg_id)
-print(release_group_api)
+#release_group_api = api_factory.get_release_group(rg_id)
+#print(release_group_api)
 
 
 pass
