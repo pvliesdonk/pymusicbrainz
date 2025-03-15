@@ -65,9 +65,12 @@ class MBFactory(ABC):
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
         pass
 
+    @abstractmethod
+    def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+        pass
+
 
 class CacheFactory(MBFactory):
-
     _logger: logging.Logger = logging.getLogger(__name__)
 
     def __init__(self, backup_factory: MBFactory = None, shelf_file: pathlib.Path = None):
@@ -89,45 +92,48 @@ class CacheFactory(MBFactory):
 
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
         a_id = ArtistID(in_obj)
-        if a_id not in self.cache:
-            self.cache[a_id] = self.backup_factory.get_artist(a_id)
-        return self.cache[a_id]
+        if a_id not in self._cache:
+            self._cache[a_id] = self.backup_factory.get_artist(a_id)
+        return self._cache[a_id]
 
     def get_release_group(self, in_obj: ReleaseGroupID | str | uuid.UUID) -> ReleaseGroup:
         rg_id = ReleaseGroupID(in_obj)
-        if rg_id not in self.cache:
-            self.cache[rg_id] = self.backup_factory.get_release_group(rg_id)
-        return self.cache[rg_id]
+        if rg_id not in self._cache:
+            self._cache[rg_id] = self.backup_factory.get_release_group(rg_id)
+        return self._cache[rg_id]
 
     def get_release(self, in_obj: ReleaseID | str | uuid.UUID) -> Release:
         rel_id = ReleaseID(in_obj)
-        if rel_id not in self.cache:
-            self.cache[rel_id] = self.backup_factory.get_release(rel_id)
-        return self.cache[rel_id]
+        if rel_id not in self._cache:
+            self._cache[rel_id] = self.backup_factory.get_release(rel_id)
+        return self._cache[rel_id]
 
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
         rec_id = RecordingID(in_obj)
-        if rec_id not in self.cache:
-            self.cache[rec_id] = self.backup_factory.get_recording(rec_id)
-        return self.cache[rec_id]
+        if rec_id not in self._cache:
+            self._cache[rec_id] = self.backup_factory.get_recording(rec_id)
+        return self._cache[rec_id]
 
     def get_medium(self, in_obj: MediumID | str | uuid.UUID) -> Medium:
         m_id = MediumID(in_obj)
-        if m_id not in self.cache:
-            self.cache[m_id] = self.backup_factory.get_medium(m_id)
-        return self.cache[m_id]
+        if m_id not in self._cache:
+            self._cache[m_id] = self.backup_factory.get_medium(m_id)
+        return self._cache[m_id]
 
     def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
         t_id = TrackID(in_obj)
-        if t_id not in self.cache:
-            self.cache[t_id] = self.backup_factory.get_track(t_id)
-        return self.cache[t_id]
+        if t_id not in self._cache:
+            self._cache[t_id] = self.backup_factory.get_track(t_id)
+        return self._cache[t_id]
 
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
         w_id = WorkID(in_obj)
-        if w_id not in self.cache:
-            self.cache[w_id] = self.backup_factory.get_work(w_id)
-        return self.cache[w_id]
+        if w_id not in self._cache:
+            self._cache[w_id] = self.backup_factory.get_work(w_id)
+        return self._cache[w_id]
+
+    def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+        self.backup_factory.performance_of_recording(recording)
 
 
 class DBFactory(MBFactory):
@@ -146,7 +152,7 @@ class DBFactory(MBFactory):
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
                 in_obj = ArtistID(in_obj)
 
-            self._logger.debug(f"Looking up {in_obj} in Musicbrainz Database")
+            self._logger.debug(f"Looking up artist {in_obj} in Musicbrainz Database")
 
             stmt = sa.select(mbdata.models.Artist).where(mbdata.models.Artist.gid == str(in_obj))
             a: mbdata.models.Artist = session.scalar(stmt)
@@ -178,6 +184,8 @@ class DBFactory(MBFactory):
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
                 in_obj = ReleaseGroupID(in_obj)
+
+            self._logger.debug(f"Looking up release group {in_obj} in Musicbrainz Database")
 
             stmt = sa.select(mbdata.models.ReleaseGroup).where(mbdata.models.ReleaseGroup.gid == str(in_obj))
             rg: mbdata.models.ReleaseGroup = session.scalar(stmt)
@@ -219,6 +227,9 @@ class DBFactory(MBFactory):
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
                 in_obj = ReleaseID(in_obj)
+
+            self._logger.debug(f"Looking up release {in_obj} in Musicbrainz Database")
+
             stmt = sa.select(mbdata.models.Release).where(mbdata.models.Release.gid == str(in_obj))
             rel: mbdata.models.Release = session.scalar(stmt)
 
@@ -258,15 +269,15 @@ class DBFactory(MBFactory):
 
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
         with db.get_db_session() as session:
-            if isinstance(in_obj, mbdata.models.Recording):
-                rec: mbdata.models.Recording = session.merge(in_obj)
-            else:
-                if isinstance(in_obj, str):
-                    in_obj = RecordingID(in_obj)
-                stmt = sa.select(mbdata.models.Recording).where(mbdata.models.Recording.gid == str(in_obj))
-                rec: mbdata.models.Recording = session.scalar(stmt)
-                if rec is None:
-                    raise MBIDNotExistsError(f"No recording with id '{in_obj}'")
+            if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
+                in_obj = RecordingID(in_obj)
+
+            self._logger.debug(f"Looking up recording {in_obj} in Musicbrainz Database")
+
+            stmt = sa.select(mbdata.models.Recording).where(mbdata.models.Recording.gid == str(in_obj))
+            rec: mbdata.models.Recording = session.scalar(stmt)
+            if rec is None:
+                raise MBIDNotExistsError(f"No recording with id '{in_obj}'")
 
             first_release_date = util.parse_partial_date(
                 rec.first_release.date) if rec.first_release is not None else None
@@ -288,7 +299,8 @@ class DBFactory(MBFactory):
                 artist_credit_phrase=rec.artist_credit.name,
                 disambiguation=rec.comment,
                 first_release_date=first_release_date,
-                aliases=aliases
+                aliases=aliases,
+                factory=self
             )
         return recording
 
@@ -302,6 +314,9 @@ class DBFactory(MBFactory):
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
                 in_obj = WorkID(in_obj)
+
+            self._logger.debug(f"Looking up work {in_obj} in Musicbrainz Database")
+
             stmt = sa.select(mbdata.models.Work).where(mbdata.models.Work.gid == str(in_obj))
             w: mbdata.models.Work = session.scalar(stmt)
 
@@ -317,6 +332,31 @@ class DBFactory(MBFactory):
                 factory=self
             )
             return work
+
+    def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+        with db.get_db_session() as session:
+            if recording._db_id is None:
+                # TODO implement: determine correct id if recording didn't come from DBFactory.
+                raise NotImplementedError
+
+            stmt = sa.select(mbdata.models.LinkRecordingWork). \
+                where(mbdata.models.LinkRecordingWork.entity0_id == str(recording._db_id))
+            res: list[mbdata.models.LinkRecordingWork] = session.scalars(stmt).all()
+            if res is None or len(res) == 0:
+                return [], []
+            else:
+                ws = [self.get_work(r.work.gid) for r in res]
+
+            types = []
+            for r in res:
+                stmt = sa.select(mbdata.models.LinkAttribute). \
+                    where(mbdata.models.LinkAttribute.link == r.link)
+                res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
+
+                [types.append(PerformanceWorkAttributes(att.attribute_type.name)) for att in res2 if
+                 PerformanceWorkAttributes(att.attribute_type.name) not in types]
+
+            return ws, types
 
 
 class APIFactory(MBFactory):
@@ -357,19 +397,29 @@ class APIFactory(MBFactory):
         return artist
 
     def get_release_group(self, in_obj: ReleaseGroupID | str | uuid.UUID) -> ReleaseGroup:
+        # TODO: Implement
         raise NotImplementedError
 
     def get_release(self, in_obj: ReleaseID | str | uuid.UUID) -> Release:
+        # TODO: Implement
         raise NotImplementedError
 
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
+        # TODO: Implement
         raise NotImplementedError
 
     def get_medium(self, in_obj: MediumID | str | uuid.UUID) -> Medium:
+        # TODO: Implement
         raise NotImplementedError
 
     def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
+        # TODO: Implement
         raise NotImplementedError
 
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
+        # TODO: Implement
+        raise NotImplementedError
+
+    def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+        # TODO: Implement
         raise NotImplementedError

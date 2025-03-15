@@ -43,34 +43,47 @@ class MBID:
 
 class ArtistID(MBID):
     """Musicbrainz Artist ID"""
-    pass
 
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 class ReleaseGroupID(MBID):
     """Musicbrainz Release Group ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 
 class ReleaseID(MBID):
     """Musicbrainz Release ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 
 class RecordingID(MBID):
     """Musicbrainz Recording ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 
 class MediumID(MBID):
     """Musicbrainz Medium ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 
 class TrackID(MBID):
     """Musicbrainz Track ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)
 
 
 class WorkID(MBID):
     """Musicbrainz Work ID"""
-    pass
+
+    def __init__(self, mbid: str | uuid.UUID):
+        super().__init__(mbid)

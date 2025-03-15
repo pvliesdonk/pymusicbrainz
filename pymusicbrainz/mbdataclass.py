@@ -359,14 +359,28 @@ class Recording(MBDataObject):
     title: str
     artist_credit_phrase: str
     disambiguation: str
-    performance_type: list[PerformanceWorkAttributes]
-    performance_of: list[Work]
 
     first_release_date: Optional[datetime.date] = None
     aliases: list[str] = field(default_factory=list)
     countries: list[str] = field(default_factory=list)
     _logger: logging.Logger = logging.getLogger(__name__)
     _db_id: Optional[str] = field(default=None)
+
+    def __post_init__(self):
+        self._performance_type = None
+        self._performance_of = None
+
+    @property
+    def performance_type(self) -> list[PerformanceWorkAttributes]:
+        if self._performance_type is None:
+            self._performance_of, self._performance_type = self.factory.performance_of_recording(self)
+        return self._performance_type
+
+    @property
+    def performance_of(self) -> list[Work]:
+        if self._performance_of is None:
+            self._performance_of, self._performance_type = self.factory.performance_of_recording(self)
+        return self._performance_of
 
     @property
     def is_acappella(self) -> bool:

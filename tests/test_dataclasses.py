@@ -20,7 +20,8 @@ work_id = pymusicbrainz.WorkID("3705e2ef-c3d4-3683-9bd7-8574d1749a8d")
 
 # database lookup
 
-db_factory = pymusicbrainz.factory.DBFactory()
+db_factory = pymusicbrainz.MBFactory.get_factory() #pymusicbrainz.factory.DBFactory()
+
 
 artist_db = db_factory.get_artist(a_id)
 print(artist_db)
