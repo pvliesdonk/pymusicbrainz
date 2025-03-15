@@ -27,7 +27,8 @@ dependencies = [
     "typesense",
     "unidecode",
     "mbdata @ git+https://github.com/pvliesdonk/mbdata.git",
-    "psycopg2-binary"
+    "psycopg2-binary",
+    "inflection"
 
 ]
 
