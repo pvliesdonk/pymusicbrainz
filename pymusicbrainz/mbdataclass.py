@@ -360,17 +360,13 @@ class Recording(MBDataObject):
     artist_credit_phrase: str
     disambiguation: str
     performance_type: list[PerformanceWorkAttributes]
+    performance_of: list[Work]
 
     first_release_date: Optional[datetime.date] = None
     aliases: list[str] = field(default_factory=list)
     countries: list[str] = field(default_factory=list)
     _logger: logging.Logger = logging.getLogger(__name__)
     _db_id: Optional[str] = field(default=None)
-
-    @property
-    def performance_of(self) -> list[Work]:
-        # TODO: Implement
-        raise NotImplementedError
 
     @property
     def is_acappella(self) -> bool:

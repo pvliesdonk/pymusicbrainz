@@ -527,7 +527,7 @@ class Release(MusicBrainzObject):
                  in_obj: ReleaseID | mbdata.models.Release | str) -> None:
         from .object_cache import get_artist
         from .util import parse_partial_date
-        from pymusicbrainz.util import area_to_country
+        from pymusicbrainz.util import area_to_country_db
         with get_db_session() as session:
             if isinstance(in_obj, mbdata.models.Release):
                 rel: mbdata.models.Release = session.merge(in_obj)
@@ -549,7 +549,7 @@ class Release(MusicBrainzObject):
             self.disambiguation: str = rel.comment
             self.first_release_date: datetime.date = parse_partial_date(
                 rel.first_release.date) if rel.first_release is not None else None
-            self.countries: list[str] = [area_to_country(c.country.area) for c in rel.country_dates]
+            self.countries: list[str] = [area_to_country_db(c.country.area) for c in rel.country_dates]
 
     @cached_property
     def aliases(self) -> list[str]:

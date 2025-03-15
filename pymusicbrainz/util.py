@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import logging
 import re
 from typing import Optional
@@ -65,7 +66,7 @@ def split_artist(s: str, include_first=True) -> list[str]:
         return recurse_result
 
 
-def area_to_country(area: mbdata.models.Area) -> Optional[str]:
+def area_to_country_db(area: mbdata.models.Area) -> Optional[str]:
     with db.get_db_session() as session:
         if area is None:
             return None
@@ -84,3 +85,13 @@ def area_to_country(area: mbdata.models.Area) -> Optional[str]:
             return area.iso_3166_1_codes[0].code
         except IndexError as ex:
             return None
+
+
+def parse_partial_date(partial_date: mbdata.models.PartialDate) -> datetime.date | None:
+    if partial_date.year is None:
+        return None
+    if partial_date.month is None:
+        return datetime.date(year=partial_date.year, month=1, day=1)
+    if partial_date.day is None:
+        return datetime.date(year=partial_date.year, month=partial_date.month, day=1)
+    return datetime.date(year=partial_date.year, month=partial_date.month, day=partial_date.day)
