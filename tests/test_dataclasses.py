@@ -35,11 +35,13 @@ print(release_db)
 recording_db = db_factory.get_recording(rec_id)
 print(recording_db)
 
+work_db = db_factory.get_work(work_id)
+print(work_db)
+
+
 track_db = db_factory.get_track(track_id)
 print(track_db)
 
-work_db = db_factory.get_work(work_id)
-print(work_db)
 
 # API lookup
 

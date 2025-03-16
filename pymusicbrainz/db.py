@@ -34,7 +34,7 @@ def configure_database(db_url: str = None, echo_sql: bool = False) -> None:
     mbdata.models.Base.metadata.create_all(_engine)
 
 
-def get_db_session() -> None:
+def get_db_session() -> sa.orm.Session:
     """Return a SQLAlchemy session object that can be used to query the database"""
     global _engine
     if _engine is None or _Session is None:

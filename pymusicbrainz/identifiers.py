@@ -9,13 +9,16 @@ class MBID:
 
     _logger = logging.getLogger(__name__)
 
-    def __init__(self, mbid: str | uuid.UUID):
+    def __init__(self, mbid: str | uuid.UUID | MBID):
 
         if isinstance(mbid, str):
             self.mbid: uuid.UUID = uuid.UUID(mbid)
 
         elif isinstance(mbid, uuid.UUID):
             self.mbid = mbid
+
+        elif isinstance(mbid, MBID):
+            self.mbid = mbid.mbid
 
         else:
             self._logger.error(
@@ -44,46 +47,22 @@ class MBID:
 class ArtistID(MBID):
     """Musicbrainz Artist ID"""
 
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
-
 class ReleaseGroupID(MBID):
     """Musicbrainz Release Group ID"""
-
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
 
 
 class ReleaseID(MBID):
     """Musicbrainz Release ID"""
 
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
-
-
 class RecordingID(MBID):
     """Musicbrainz Recording ID"""
-
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
 
 
 class MediumID(MBID):
     """Musicbrainz Medium ID"""
 
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
-
-
 class TrackID(MBID):
     """Musicbrainz Track ID"""
 
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)
-
-
 class WorkID(MBID):
     """Musicbrainz Work ID"""
-
-    def __init__(self, mbid: str | uuid.UUID):
-        super().__init__(mbid)

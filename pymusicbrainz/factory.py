@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import datetime
-import logging
 import pathlib
 import shelve
-import uuid
 from abc import ABC, abstractmethod
+from functools import lru_cache
+from typing import MutableMapping
 
+import mbdata.models
 import musicbrainzngs
 import sqlalchemy as sa
-import mbdata.models
 
 from . import db, util, ReleaseType, musicbrainz_api, PerformanceWorkAttributes
-from .mbdataclass import Artist, ReleaseGroup, Release, Recording, Medium, Track, Work
-from .identifiers import *
 from .exceptions import *
+from .identifiers import *
+from .mbdataclass import Artist, ReleaseGroup, Release, Recording, Medium, Track, Work, MBDataObject
 
 
 class MBFactory(ABC):
@@ -36,6 +36,22 @@ class MBFactory(ABC):
             backup_factory=factory
         )
         return cache_factory
+
+    def get_object_from_id(self, id: MBID) -> MBDataObject:
+        if isinstance(id, ArtistID):
+            return self.get_artist(id)
+        elif isinstance(id, ReleaseGroupID):
+            return self.get_release_group(id)
+        elif isinstance(id, ReleaseID):
+            return self.get_release(id)
+        elif isinstance(id, RecordingID):
+            return self.get_recording(id)
+        elif isinstance(id, WorkID):
+            return self.get_work(id)
+        elif isinstance(id, TrackID):
+            return self.get_track(id)
+        else:
+            raise NotFoundError(f"Could not identify musicbrainz id {id}")
 
     @abstractmethod
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
@@ -65,6 +81,34 @@ class MBFactory(ABC):
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
         pass
 
+    def update_mbid(self, mbid: MBID) -> MBID:
+        if isinstance(mbid, ArtistID):
+            return self.update_artist_id(mbid)
+        elif isinstance(mbid, ReleaseGroupID):
+            return self.update_release_group_id(mbid)
+        elif isinstance(mbid, ReleaseID):
+            return self.update_release_id(mbid)
+        elif isinstance(mbid, RecordingID):
+            return self.update_recording_id(mbid)
+        else:
+            raise NotImplementedError
+
+    @abstractmethod
+    def update_artist_id(self, mbid: ArtistID) -> ArtistID:
+        pass
+
+    @abstractmethod
+    def update_release_group_id(self, mbid: ReleaseGroupID) -> ReleaseGroupID:
+        pass
+
+    @abstractmethod
+    def update_release_id(self, mbid: ReleaseID) -> ReleaseID:
+        pass
+
+    @abstractmethod
+    def update_recording_id(self, mbid: RecordingID) -> RecordingID:
+        pass
+
     @abstractmethod
     def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
         pass
@@ -79,14 +123,14 @@ class CacheFactory(MBFactory):
             raise FactoryNotAvailable(f"{type(self)} cannot work with backup factory to cache for.")
         if shelf_file is None:
             self._logger.debug(f"Creating CacheFactory backed by dict in memory")
-            self._cache = {}
+            self._cache: MutableMapping[MBID, MBDataObject] = {}
         else:
             self._logger.debug(f"Creating CacheFactor backed by shelf in {shelf_file}")
-            self._cache = shelve.open(str(shelf_file))
+            self._cache: shelve.Shelf = shelve.open(str(shelf_file))
 
     def clear_cache(self):
         if isinstance(self._cache, dict):
-            _object_cache = {}
+            _object_cache: dict[MBID, MBDataObject] = {}
         if isinstance(self._cache, shelve.Shelf):
             self._cache.sync()
 
@@ -132,8 +176,20 @@ class CacheFactory(MBFactory):
             self._cache[w_id] = self.backup_factory.get_work(w_id)
         return self._cache[w_id]
 
+    def update_artist_id(self, mbid: ArtistID) -> ArtistID:
+        return self.backup_factory.update_artist_id(mbid)
+
+    def update_release_group_id(self, mbid: ReleaseGroupID) -> ReleaseGroupID:
+        return self.backup_factory.update_release_group_id(mbid)
+
+    def update_release_id(self, mbid: ReleaseID) -> ReleaseID:
+        return self.backup_factory.update_release_id(mbid)
+
+    def update_recording_id(self, mbid: RecordingID) -> RecordingID:
+        return self.backup_factory.update_recording_id(mbid)
+
     def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
-        self.backup_factory.performance_of_recording(recording)
+        return self.backup_factory.performance_of_recording(recording)
 
 
 class DBFactory(MBFactory):
@@ -141,12 +197,17 @@ class DBFactory(MBFactory):
 
     def __init__(self, backup_factory: MBFactory = None):
         # TODO: check whether database is reachable
-        if False:  # database not reachable
+        try:
+            session = db.get_db_session()
+            connection = session.connection()
+        except Exception as ex:
+            self._logger.warning(f"Could not connect to database: {ex}")
             raise FactoryNotAvailable()
         super().__init__(backup_factory)
         if self.backup_factory is not None:
             self._logger.debug(f"Using factory of type {type(self.backup_factory)} as backup")
 
+    @lru_cache
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
@@ -180,6 +241,7 @@ class DBFactory(MBFactory):
 
             return artist
 
+    @lru_cache
     def get_release_group(self, in_obj: ReleaseGroupID | str | uuid.UUID) -> ReleaseGroup:
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
@@ -223,6 +285,7 @@ class DBFactory(MBFactory):
 
             return release_group
 
+    @lru_cache
     def get_release(self, in_obj: ReleaseID | str | uuid.UUID) -> Release:
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
@@ -267,6 +330,7 @@ class DBFactory(MBFactory):
 
         return release
 
+    @lru_cache
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
@@ -304,12 +368,58 @@ class DBFactory(MBFactory):
             )
         return recording
 
-    def get_medium(self, in_obj: MediumID | str | uuid.UUID) -> Medium:
-        raise NotImplementedError
+    @lru_cache
+    def get_medium(self, in_obj: MediumID | str | uuid.UUID | mbdata.models.Medium) -> Medium:
+        if isinstance(in_obj, mbdata.models.Medium):
+            with db.get_db_session() as session:
+                if isinstance(in_obj, mbdata.models.Medium):
+                    m: mbdata.models.Medium = session.merge(in_obj)
 
+                medium = Medium(
+                    _db_id=m.id,
+                    title=m.name,
+                    position=m.position,
+                    release_id=ReleaseID(str(m.release.gid)),
+                    tracks_ids=[TrackID(str(t.gid)) for t in m.tracks],
+                    track_count=m.track_count,
+                    format=m.format.name if m.format is not None else None,
+                    factory=self
+                )
+                return medium
+
+
+        else:
+            raise NotImplementedError
+
+    @lru_cache
     def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
-        raise NotImplementedError
+        with db.get_db_session() as session:
+            if isinstance(in_obj, str):
+                in_obj = TrackID(in_obj)
 
+            stmt = sa.select(mbdata.models.Track).where(mbdata.models.Track.gid == str(in_obj))
+            tr: mbdata.models.Track = session.scalar(stmt)
+
+            artists = [self.get_artist(ArtistID(str(a.artist.gid))) for a in tr.artist_credit.artists]
+
+            medium: Medium = self.get_medium(tr.medium)
+
+            track = Track(
+                id=TrackID(str(tr.gid)),
+                _db_id=tr.id,
+                artists=artists,
+                title=tr.name,
+                artist_credit_phrase=tr.artist_credit.name,
+                position=tr.position,
+                number=tr.number,
+                length=tr.length,
+                medium=medium,
+                recording_id=RecordingID(str(tr.recording.gid)),
+                factory=self
+            )
+            return track
+
+    @lru_cache
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
         with db.get_db_session() as session:
             if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
@@ -333,6 +443,63 @@ class DBFactory(MBFactory):
             )
             return work
 
+    def update_artist_id(self, mbid: ArtistID) -> ArtistID:
+        with db.get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.Artist.gid)
+                .join_from(mbdata.models.ArtistGIDRedirect, mbdata.models.Artist,
+                           mbdata.models.ArtistGIDRedirect.artist)
+                .where(mbdata.models.ArtistGIDRedirect.gid == str(mbid))
+            )
+            res = session.scalar(stmt)
+            if res is None:
+                return mbid
+            else:
+                return ArtistID(str(res))
+
+    def update_release_group_id(self, mbid: ReleaseGroupID) -> ReleaseGroupID:
+        with db.get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.ReleaseGroup.gid)
+                .join_from(mbdata.models.ReleaseGroupGIDRedirect, mbdata.models.ReleaseGroup,
+                           mbdata.models.ReleaseGroupGIDRedirect.release_group)
+                .where(mbdata.models.ReleaseGroupGIDRedirect.gid == str(mbid))
+            )
+            res = session.scalar(stmt)
+            if res is None:
+                return mbid
+            else:
+                return ReleaseGroupID(str(res))
+
+    def update_release_id(self, mbid: ReleaseID) -> ReleaseID:
+        with db.get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.Release.gid)
+                .join_from(mbdata.models.ReleaseGIDRedirect, mbdata.models.Release,
+                           mbdata.models.ReleaseGIDRedirect.release)
+                .where(mbdata.models.ReleaseGIDRedirect.gid == str(mbid))
+            )
+            res = session.scalar(stmt)
+            if res is None:
+                return mbid
+            else:
+                return ReleaseID(str(res))
+
+    def update_recording_id(self, mbid: RecordingID) -> RecordingID:
+        with db.get_db_session() as session:
+            stmt = (
+                sa.select(mbdata.models.Recording.gid)
+                .join_from(mbdata.models.RecordingGIDRedirect, mbdata.models.Recording,
+                           mbdata.models.RecordingGIDRedirect.recording)
+                .where(mbdata.models.RecordingGIDRedirect.gid == str(mbid))
+            )
+            res = session.scalar(stmt)
+            if res is None:
+                return mbid
+            else:
+                return RecordingID(str(res))
+
+    @lru_cache
     def performance_of_recording(self, recording: Recording) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
         with db.get_db_session() as session:
             if recording._db_id is None:
@@ -417,6 +584,22 @@ class APIFactory(MBFactory):
         raise NotImplementedError
 
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
+        # TODO: Implement
+        raise NotImplementedError
+
+    def update_artist_id(self, mbid: ArtistID) -> ArtistID:
+        # TODO: Implement
+        raise NotImplementedError
+
+    def update_release_group_id(self, mbid: ReleaseGroupID) -> ReleaseGroupID:
+        # TODO: Implement
+        raise NotImplementedError
+
+    def update_release_id(self, mbid: ReleaseID) -> ReleaseID:
+        # TODO: Implement
+        raise NotImplementedError
+
+    def update_recording_id(self, mbid: RecordingID) -> RecordingID:
         # TODO: Implement
         raise NotImplementedError
 

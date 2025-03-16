@@ -490,15 +490,17 @@ class Recording(MBDataObject):
 
 
 @dataclass
-class Medium(MBDataObject):
-    id: MediumID
+class Medium(object):
     title: str
     position: int
     release_id: ReleaseID
     tracks_ids: list[TrackID]
     track_count: int
+    factory: factory.MBFactory
 
     format: Optional[str] = None
+
+    id: MediumID = None   # mediums don't have an id.
     _logger: logging.Logger = logging.getLogger(__name__)
     _db_id: Optional[str] = field(default=None)
 
