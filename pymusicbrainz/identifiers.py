@@ -22,7 +22,8 @@ class MBID:
 
         else:
             self._logger.error(
-                f"Trying to instantiate an object of type {type(mbid)}, which is not a string or uuid.UUID")
+                f"Trying to instantiate an object of type {type(mbid)}, which is not a string or uuid.UUID"
+            )
 
     def __repr__(self):
         return f"{type(self).__name__}({str(self.mbid)})"
@@ -47,6 +48,7 @@ class MBID:
 class ArtistID(MBID):
     """Musicbrainz Artist ID"""
 
+
 class ReleaseGroupID(MBID):
     """Musicbrainz Release Group ID"""
 
@@ -54,15 +56,14 @@ class ReleaseGroupID(MBID):
 class ReleaseID(MBID):
     """Musicbrainz Release ID"""
 
+
 class RecordingID(MBID):
     """Musicbrainz Recording ID"""
 
 
-class MediumID(MBID):
-    """Musicbrainz Medium ID"""
-
 class TrackID(MBID):
     """Musicbrainz Track ID"""
+
 
 class WorkID(MBID):
     """Musicbrainz Work ID"""

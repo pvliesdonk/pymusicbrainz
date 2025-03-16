@@ -5,10 +5,13 @@ import pathlib
 
 from context import pymusicbrainz
 
-logging.basicConfig(format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s", level=logging.DEBUG)
+logging.basicConfig(
+    format="%(levelname)-8s:%(asctime)s:%(name)-30s:%(lineno)-4s:%(message)s",
+    level=logging.DEBUG,
+)
 logging.getLogger().setLevel(logging.DEBUG)
-logging.getLogger('musicbrainzngs').setLevel(logging.ERROR)
-logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger("musicbrainzngs").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
 a_id = pymusicbrainz.ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
@@ -20,7 +23,7 @@ work_id = pymusicbrainz.WorkID("3705e2ef-c3d4-3683-9bd7-8574d1749a8d")
 
 # database lookup
 
-db_factory = pymusicbrainz.MBFactory.get_factory() #pymusicbrainz.factory.DBFactory()
+db_factory = pymusicbrainz.MBFactory.get_factory()  # pymusicbrainz.factory.DBFactory()
 
 
 artist_db = db_factory.get_artist(a_id)

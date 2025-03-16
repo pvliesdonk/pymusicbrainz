@@ -4,15 +4,22 @@ import datetime
 import logging
 from abc import ABC
 from dataclasses import dataclass, field
-
 from typing import Optional
 
 import inflection
 import rapidfuzz
 
 from . import factory, util, constants
+from .identifiers import (
+    MBID,
+    ArtistID,
+    ReleaseGroupID,
+    ReleaseID,
+    RecordingID,
+    TrackID,
+    WorkID,
+)
 from .musicbrainz_types import ReleaseType, PerformanceWorkAttributes
-from .identifiers import MBID, ArtistID, ReleaseGroupID, ReleaseID, RecordingID, MediumID, TrackID, WorkID
 
 
 @dataclass
@@ -77,14 +84,20 @@ class Artist(MBDataObject):
 
         artist_split = util.split_artist(artist_query)
 
-        artist_ratios = [rapidfuzz.process.extractOne(
-            util.flatten_title(artist_name=split),
-            [util.flatten_title(self.name)] + [util.flatten_title(a) for a in self.aliases],
-            processor=rapidfuzz.utils.default_process
-        )[1] for split in artist_split]
+        artist_ratios = [
+            rapidfuzz.process.extractOne(
+                util.flatten_title(artist_name=split),
+                [util.flatten_title(self.name)]
+                + [util.flatten_title(a) for a in self.aliases],
+                processor=rapidfuzz.utils.default_process,
+            )[1]
+            for split in artist_split
+        ]
         artist_ratio = max(artist_ratios)
         if artist_ratio < cut_off:
-            self._logger.debug(f"{self} is not a sane candidate for artist {artist_query}")
+            self._logger.debug(
+                f"{self} is not a sane candidate for artist {artist_query}"
+            )
         return artist_ratio > cut_off
 
     def __str__(self):
@@ -150,7 +163,10 @@ class ReleaseGroup(MBDataObject):
 
     @property
     def is_soundtrack(self) -> bool:
-        return self.primary_type == ReleaseType.ALBUM and ReleaseType.SOUNDTRACK in self.types
+        return (
+            self.primary_type == ReleaseType.ALBUM
+            and ReleaseType.SOUNDTRACK in self.types
+        )
 
     @property
     def is_compilation(self) -> bool:
@@ -176,17 +192,22 @@ class ReleaseGroup(MBDataObject):
             util.flatten_title(artist_name=self.artist_credit_phrase),
             util.flatten_title(artist_name=artist_query),
             processor=rapidfuzz.utils.default_process,
-            score_cutoff=cut_off
+            score_cutoff=cut_off,
         )
         if artist_ratio < cut_off:
-            self._logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for artist {artist_query}"
+            )
         title_ratio = rapidfuzz.process.extractOne(
             util.flatten_title(album_name=title_query),
-            [util.flatten_title(album_name=self.title)] + [util.flatten_title(album_name=x) for x in self.aliases],
-            processor=rapidfuzz.utils.default_process
+            [util.flatten_title(album_name=self.title)]
+            + [util.flatten_title(album_name=x) for x in self.aliases],
+            processor=rapidfuzz.utils.default_process,
         )[1]
         if title_ratio < cut_off:
-            self._logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for title {title_query}"
+            )
         return artist_ratio > cut_off and title_ratio > cut_off
 
     def __str__(self):
@@ -283,24 +304,34 @@ class Release(MBDataObject):
             util.flatten_title(artist_name=self.artist_credit_phrase),
             util.flatten_title(artist_name=artist_query),
             processor=rapidfuzz.utils.default_process,
-            score_cutoff=cut_off
+            score_cutoff=cut_off,
         )
         if artist_ratio < cut_off:
-            self._logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for artist {artist_query}"
+            )
         title_ratio = rapidfuzz.process.extractOne(
             util.flatten_title(recording_name=title_query),
-            [util.flatten_title(recording_name=self.title)] + [util.flatten_title(recording_name=x) for x in
-                                                               self.aliases],
-            processor=rapidfuzz.utils.default_process
+            [util.flatten_title(recording_name=self.title)]
+            + [util.flatten_title(recording_name=x) for x in self.aliases],
+            processor=rapidfuzz.utils.default_process,
         )[1]
         if title_ratio < cut_off:
-            self._logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for title {title_query}"
+            )
         return artist_ratio > cut_off and title_ratio > cut_off
 
     def __str__(self):
-        s1 = (f" [{self.countries[0]}]" if len(self.countries) == 1 else
-              (f" [{self.countries[0]}+{len(self.countries)}]" if len(self.countries) > 1 else "")
-              )
+        s1 = (
+            f" [{self.countries[0]}]"
+            if len(self.countries) == 1
+            else (
+                f" [{self.countries[0]}+{len(self.countries)}]"
+                if len(self.countries) > 1
+                else ""
+            )
+        )
         s2 = (
             f" {self.first_release_date}" if self.first_release_date is not None else ""
         )
@@ -339,9 +370,9 @@ class Release(MBDataObject):
                     elif self.is_favorite_country != other.is_favorite_country:
                         return self.is_favorite_country > other.is_favorite_country
                     else:
-                        #_logger.error("Multiple releases with same date and country:")
-                        #_logger.error(self)
-                        #_logger.error(other)
+                        # _logger.error("Multiple releases with same date and country:")
+                        # _logger.error(self)
+                        # _logger.error(other)
                         return True
                 else:
                     return True
@@ -373,13 +404,17 @@ class Recording(MBDataObject):
     @property
     def performance_type(self) -> list[PerformanceWorkAttributes]:
         if self._performance_type is None:
-            self._performance_of, self._performance_type = self.factory.performance_of_recording(self)
+            self._performance_of, self._performance_type = (
+                self.factory.performance_of_recording(self)
+            )
         return self._performance_type
 
     @property
     def performance_of(self) -> list[Work]:
         if self._performance_of is None:
-            self._performance_of, self._performance_type = self.factory.performance_of_recording(self)
+            self._performance_of, self._performance_type = (
+                self.factory.performance_of_recording(self)
+            )
         return self._performance_of
 
     @property
@@ -426,16 +461,29 @@ class Recording(MBDataObject):
                         result.append(r)
             else:
                 self._logger.debug(
-                    f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}")
+                    f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}"
+                )
 
-                result = [rec for rec in work.performance_by_type(self.performance_type) if rec.artists == self.artists]
+                result = [
+                    rec
+                    for rec in work.performance_by_type(self.performance_type)
+                    if rec.artists == self.artists
+                ]
         self._logger.debug(f"Identified {len(result)} siblings")
         return result
 
     def __str__(self):
-        s_date = f" {self.first_release_date}" if self.first_release_date is not None else ""
-        return f"'{self.artist_credit_phrase}' - '{self.title}'{s_date} [{self.id}] " + (
-            "/".join(self.performance_type) if len(self.performance_type) > 0 else "")
+        s_date = (
+            f" {self.first_release_date}" if self.first_release_date is not None else ""
+        )
+        return (
+            f"'{self.artist_credit_phrase}' - '{self.title}'{s_date} [{self.id}] "
+            + (
+                "/".join(self.performance_type)
+                if len(self.performance_type) > 0
+                else ""
+            )
+        )
 
     def __eq__(self, other):
         if isinstance(other, Recording):
@@ -473,15 +521,19 @@ class Recording(MBDataObject):
 
         title_ratio = rapidfuzz.process.extractOne(
             util.flatten_title(recording_name=title_query),
-            [util.flatten_title(recording_name=self.title)] + [util.flatten_title(recording_name=a) for a in
-                                                               self.aliases],
-            processor=rapidfuzz.utils.default_process
+            [util.flatten_title(recording_name=self.title)]
+            + [util.flatten_title(recording_name=a) for a in self.aliases],
+            processor=rapidfuzz.utils.default_process,
         )[1]
 
         if not artist_sane:
-            self._logger.warning(f"{self} is not a sane candidate for artist {artist_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for artist {artist_query}"
+            )
         elif title_ratio < cut_off:
-            self._logger.warning(f"{self} is not a sane candidate for title {title_query}")
+            self._logger.warning(
+                f"{self} is not a sane candidate for title {title_query}"
+            )
         else:
             return True
 
@@ -500,7 +552,7 @@ class Medium(object):
 
     format: Optional[str] = None
 
-    id: MediumID = None   # mediums don't have an id.
+    id: MediumID = None  # mediums don't have an id.
     _logger: logging.Logger = logging.getLogger(__name__)
     _db_id: Optional[str] = field(default=None)
 
@@ -513,9 +565,8 @@ class Medium(object):
         return [self.factory.get_track(t) for t in self.tracks_ids]
 
     def __str__(self):
-        return (
-                f"'{self.release.artist_credit_phrase}' - '{self.release.title}'"
-                + (f" - '{self.title}'" if self.title else "")
+        return f"'{self.release.artist_credit_phrase}' - '{self.release.title}'" + (
+            f" - '{self.title}'" if self.title else ""
         )
 
     def __contains__(self, item):
@@ -596,7 +647,9 @@ class Work(MBDataObject):
         # TODO: Implement
         raise NotImplementedError
 
-    def performance_by_type(self, types: list[PerformanceWorkAttributes]) -> list[Recording]:
+    def performance_by_type(
+        self, types: list[PerformanceWorkAttributes]
+    ) -> list[Recording]:
         results = None
         for t in types:
             if t in self.performances.keys():
