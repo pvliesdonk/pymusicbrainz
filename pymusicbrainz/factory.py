@@ -5,7 +5,7 @@ import pathlib
 import shelve
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from typing import MutableMapping
+from typing import MutableMapping, Optional
 
 import mbdata.models
 import musicbrainzngs
@@ -27,25 +27,63 @@ from .mbdataclass import (
 
 
 class MBFactory(ABC):
-    # TODO: Introduce link to main factory current implementation is wrong
-    def __init__(self, backup_factory: MBFactory = None):
-        self.backup_factory = backup_factory
+    def __init__(self):
+
+        self._main_factory = None
+        self._backup_factory = None
+
+    @property
+    def backup_factory(self) -> Optional[MBFactory]:
+        return self._backup_factory
+
+    @backup_factory.setter
+    def backup_factory(self, factory: Optional[MBFactory]):
+        self._backup_factory = factory
+
+    @property
+    def main_factory(self) -> Optional[MBFactory]:
+        return self._main_factory
+
+    @main_factory.setter
+    def main_factory(self, factory: Optional[MBFactory]):
+        self._main_factory = factory
+
+    def chain_to(self, factory: MBFactory):
+        self.backup_factory = factory
+        if self.main_factory is None:
+            factory.main_factory = self
+        else:
+            factory.main_factory = self.main_factory
+
+    @property
+    def factory_chain(self) -> list[MBFactory]:
+        if self.main_factory is None:
+            factory = self
+        else:
+            factory = self.main_factory
+        factories = []
+        while factory is not None:
+            factories.append(factory)
+            factory = factory.backup_factory
+        return factories
 
     @staticmethod
     def get_factory(shelf_file: pathlib.Path = None) -> MBFactory:
-        api_factory = APIFactory()
+        cache_factory = CacheFactory(shelf_file=shelf_file)  # main
+        api_factory = APIFactory()  # final backup
+
         try:
-            factory = DBFactory(backup_factory=api_factory)
-            logging.getLogger(__name__).debug(
-                "Instantiated a DB Factory, using API as backup"
-            )
+            db_factory = DBFactory()
+            cache_factory.chain_to(db_factory)
+            db_factory.chain_to(api_factory)
         except FactoryNotAvailable as ex:
             logging.getLogger(__name__).debug(
-                "Database not available. Instantiated an APIFactory"
+                "Database not available. Instantiated only an APIFactory"
             )
-            factory = api_factory
-
-        cache_factory = CacheFactory(backup_factory=factory)
+            cache_factory.chain_to(api_factory)
+        logging.getLogger(__name__).debug(
+            f"Instantiated factory chain: {' --> '.join([str(f) for f in cache_factory.factory_chain])}"
+        )
         return cache_factory
 
     def get_object_from_id(self, id: MBID) -> MBDataObject:
@@ -63,13 +101,6 @@ class MBFactory(ABC):
             return self.get_track(id)
         else:
             raise NotFoundError(f"Could not identify musicbrainz id {id}")
-
-    @property
-    def main_factory(self) -> MBFactory:
-        if self.backup_factory is None:
-            return self
-        else:
-            return self.backup_factory.main_factory
 
     @abstractmethod
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
@@ -139,18 +170,21 @@ class MBFactory(ABC):
     ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
         pass
 
+    def __str__(self):
+        return str(type(self))
+
+    def __repr__(self):
+        return f"{type(self).__name__}()"
+
 
 class CacheFactory(MBFactory):
     _logger: logging.Logger = logging.getLogger(__name__)
 
     def __init__(
-        self, backup_factory: MBFactory = None, shelf_file: pathlib.Path = None
+        self,
+        shelf_file: pathlib.Path = None,
     ):
-        super().__init__(backup_factory)
-        if self.backup_factory is None:
-            raise FactoryNotAvailable(
-                f"{type(self)} cannot work with backup factory to cache for."
-            )
+        super().__init__()
         if shelf_file is None:
             self._logger.debug(f"Creating CacheFactory backed by dict in memory")
             self._cache: MutableMapping[MBID, MBDataObject] = {}
@@ -163,6 +197,12 @@ class CacheFactory(MBFactory):
             _object_cache: dict[MBID, MBDataObject] = {}
         if isinstance(self._cache, shelve.Shelf):
             self._cache.sync()
+
+    @MBFactory.backup_factory.getter
+    def backup_factory(self) -> Optional[MBFactory]:
+        if self._backup_factory is None:
+            raise FactoryNotAvailable("Cannot use CacheFactory without backup")
+        return self._backup_factory
 
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
         a_id = ArtistID(in_obj)
@@ -229,19 +269,14 @@ class CacheFactory(MBFactory):
 class DBFactory(MBFactory):
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    def __init__(self, backup_factory: MBFactory = None):
-        # TODO: check whether database is reachable
+    def __init__(self):
         try:
             session = db.get_db_session()
             connection = session.connection()
         except Exception as ex:
             self._logger.warning(f"Could not connect to database: {ex}")
             raise FactoryNotAvailable()
-        super().__init__(backup_factory)
-        if self.backup_factory is not None:
-            self._logger.debug(
-                f"Using factory of type {type(self.backup_factory)} as backup"
-            )
+        super().__init__()
 
     @lru_cache
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
@@ -635,8 +670,8 @@ class DBFactory(MBFactory):
 class APIFactory(MBFactory):
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    def __init__(self, backup_factory: MBFactory = None):
-        super().__init__(backup_factory)
+    def __init__(self):
+        super().__init__()
         if not musicbrainz_api.is_configured_musicbrainzngs():
             self._logger.debug(
                 f"Musicbrainzngs library not initialized. Configuring with default values."
