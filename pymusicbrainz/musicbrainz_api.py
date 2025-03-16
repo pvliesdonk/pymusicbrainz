@@ -12,12 +12,12 @@ _musicbrainzngs_configured: bool = False
 
 
 def configure_musicbrainzngs(
-        app: str = config.DEFAULT_APP,
-        version: str = config.DEFAULT_VERSION,
-        contact: str = config.DEFAULT_CONTACT,
-        api_url: str = config.DEFAULT_API_URL,
-        use_https: bool = config.DEFAULT_HTTPS,
-        rate_limit: bool = config.DEFAULT_RATE_LIMIT,
+    app: str = config.DEFAULT_APP,
+    version: str = config.DEFAULT_VERSION,
+    contact: str = config.DEFAULT_CONTACT,
+    api_url: str = config.DEFAULT_API_URL,
+    use_https: bool = config.DEFAULT_HTTPS,
+    rate_limit: bool = config.DEFAULT_RATE_LIMIT,
 ) -> None:
     """Configure where and how the Musicbrainz API is accessed
 
@@ -29,11 +29,12 @@ def configure_musicbrainzngs(
     :param rate_limit: Perform rate limiting. (default: True)
     """
     _logger.debug(
-        f"Configuring MusicBrainz API access via 'http{'s' if use_https else ''}://{api_url}' with rate limiting {'enabled' if rate_limit else 'disabled'}.")
+        f"Configuring MusicBrainz API access via 'http{'s' if use_https else ''}://{api_url}' with rate limiting {'enabled' if rate_limit else 'disabled'}."
+    )
     musicbrainzngs.set_hostname(api_url, use_https=use_https)
     musicbrainzngs.set_rate_limit(rate_limit)
     musicbrainzngs.set_useragent(app=app, version=version, contact=contact)
-    musicbrainzngs.set_format(fmt='xml')
+    musicbrainzngs.set_format(fmt="json")
 
     global _musicbrainzngs_configured
     _musicbrainzngs_configured = True
@@ -42,4 +43,3 @@ def configure_musicbrainzngs(
 def is_configured_musicbrainzngs() -> bool:
     """Returns True if MusicBrainz API is configured, False otherwise."""
     return _musicbrainzngs_configured
-

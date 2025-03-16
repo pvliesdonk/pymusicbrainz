@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import pathlib
 
 from context import pymusicbrainz
 
@@ -15,7 +14,7 @@ logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
 a_id = pymusicbrainz.ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
-rg_id = pymusicbrainz.ReleaseGroupID("94e8bbe7-788d-3000-8e40-57b7591d4fb4")
+rg_id = pymusicbrainz.ReleaseGroupID("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")
 rel_id = pymusicbrainz.ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922")
 track_id = pymusicbrainz.TrackID("ed3cb340-c11b-3580-a646-eaba1d109edd")
 rec_id = pymusicbrainz.RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11")

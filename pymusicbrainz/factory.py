@@ -11,7 +11,14 @@ import mbdata.models
 import musicbrainzngs
 import sqlalchemy as sa
 
-from . import db, util, ReleaseType, musicbrainz_api, PerformanceWorkAttributes
+from . import (
+    db,
+    util,
+    ReleaseType,
+    musicbrainz_api,
+    PerformanceWorkAttributes,
+    VA_ARTIST_ID,
+)
 from .exceptions import *
 from .identifiers import *
 from .mbdataclass import (
@@ -42,6 +49,8 @@ class MBFactory(ABC):
 
     @property
     def main_factory(self) -> Optional[MBFactory]:
+        if self._main_factory is None:
+            return self
         return self._main_factory
 
     @main_factory.setter
@@ -345,6 +354,14 @@ class DBFactory(MBFactory):
                 ReleaseType(s.secondary_type.name) for s in rg.secondary_types
             ]
 
+            # first release
+            stmt = sa.select(mbdata.models.ReleaseGroupMeta).where(
+                mbdata.models.ReleaseGroupMeta.id == rg.id
+            )
+            rgm: mbdata.models.ReleaseGroupMeta = session.scalar(stmt)
+
+            first_release_date = util.parse_partial_date(rgm.first_release_date)
+
             # get aliases
             stmt = sa.select(mbdata.models.ReleaseGroupAlias).where(
                 mbdata.models.ReleaseGroupAlias.release_group == rg
@@ -366,6 +383,7 @@ class DBFactory(MBFactory):
                 types=types,
                 disambiguation=rg.comment,
                 artist_credit_phrase=rg.artist_credit.name,
+                first_release_date=first_release_date,
                 is_va=(rg.artist_credit_id == 1),
             )
 
@@ -682,30 +700,34 @@ class APIFactory(MBFactory):
                 )
             musicbrainz_api.configure_musicbrainzngs()
 
+    def _artist_credit_phrase(self, artist_credit: dict) -> str:
+        s: str = ""
+        for a in artist_credit:
+            s += a["name"]
+            if "joinphrase" in a:
+                s += a["joinphrase"]
+        return s
+
     def get_artist(self, in_obj: ArtistID | str | uuid.UUID) -> Artist:
 
         if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
             in_obj = ArtistID(in_obj)
 
-        self._logger.debug(f"Looging up {in_obj} via Musicbrainz API.")
+        self._logger.debug(f"Looking up artist {in_obj} via Musicbrainz API.")
 
         result = musicbrainzngs.get_artist_by_id(id=str(in_obj), includes=["aliases"])
 
         artist = Artist(
-            id=ArtistID(result["artist"]["id"]),
+            id=ArtistID(result["id"]),
             _db_id=None,
-            name=result["artist"]["name"],
-            artist_type=(
-                result["artist"]["type"] if "type" in result["artist"] else None
-            ),
-            sort_name=result["artist"]["sort-name"],
-            disambiguation=result["artist"]["disambiguation"],
+            name=result["name"],
+            artist_type=(result["type"] if "type" in result else None),
+            sort_name=result["sort-name"],
+            disambiguation=result["disambiguation"],
             aliases=(
-                [a["alias"] for a in result["artist"]["alias-list"]]
-                if "alias-list" in result["artist"]
-                else []
+                [a["name"] for a in result["aliases"]] if "aliases" in result else []
             ),
-            country=result["artist"]["country"],
+            country=result["country"],
             factory=self.main_factory,
         )
 
@@ -714,8 +736,42 @@ class APIFactory(MBFactory):
     def get_release_group(
         self, in_obj: ReleaseGroupID | str | uuid.UUID
     ) -> ReleaseGroup:
-        # TODO: Implement
-        raise NotImplementedError
+
+        if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
+            in_obj = ReleaseGroupID(in_obj)
+
+        self._logger.debug(f"Looking up release group {in_obj} via Musicbrainz API.")
+
+        result = musicbrainzngs.get_release_group_by_id(
+            id=str(in_obj),
+            includes=["aliases", "artist-credits"],
+        )
+
+        first_release_date = util.parse_partial_date(result["first-release-date"])
+
+        va = ArtistID(result["artist-credit"][0]["artist"]["id"]) == VA_ARTIST_ID
+
+        release_group = ReleaseGroup(
+            id=in_obj,
+            _db_id=None,
+            factory=self.main_factory,
+            title=result["title"],
+            artists=[
+                self.main_factory.get_artist(a["artist"]["id"])
+                for a in result["artist-credit"]
+            ],
+            aliases=[result["title"]]
+            + ([a["name"] for a in result["aliases"]] if "aliases" in result else []),
+            primary_type=ReleaseType(result["primary-type"]),
+            types=[ReleaseType(result["primary-type"])]
+            + [ReleaseType(s) for s in result["secondary-types"]],
+            disambiguation=result["disambiguation"],
+            artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
+            first_release_date=first_release_date,
+            is_va=va,
+        )
+
+        return release_group
 
     def get_release(self, in_obj: ReleaseID | str | uuid.UUID) -> Release:
         # TODO: Implement
