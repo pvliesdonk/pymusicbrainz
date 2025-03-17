@@ -40,11 +40,6 @@ print(recording_db)
 work_db = db_factory.get_work(work_id)
 print(work_db)
 
-
-track_db = db_factory.get_track(track_id)
-print(track_db)
-
-
 # API lookup
 
 
@@ -62,9 +57,6 @@ print(release_api)
 
 recording_api = api_factory.get_recording(rec_id)
 print(recording_api)
-
-track_api = api_factory.get_track(track_id)
-print(track_api)
 
 work_api = api_factory.get_work(work_id)
 print(work_api)

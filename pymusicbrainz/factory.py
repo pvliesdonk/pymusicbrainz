@@ -11,15 +11,10 @@ import mbdata.models
 import musicbrainzngs
 import sqlalchemy as sa
 
-from . import (
-    db,
-    util,
-    ReleaseType,
-    musicbrainz_api,
-    PerformanceWorkAttributes,
-    VA_ARTIST_ID,
-)
-from .exceptions import *
+from . import db, util, musicbrainz_api
+from .constants import VA_ARTIST_ID
+from .musicbrainz_types import ReleaseType, ReleaseStatus, PerformanceWorkAttributes
+from .exceptions import FactoryNotAvailable, NotFoundError, MBIDNotExistsError
 from .identifiers import *
 from .mbdataclass import (
     Artist,
@@ -106,8 +101,6 @@ class MBFactory(ABC):
             return self.get_recording(id)
         elif isinstance(id, WorkID):
             return self.get_work(id)
-        elif isinstance(id, TrackID):
-            return self.get_track(id)
         else:
             raise NotFoundError(f"Could not identify musicbrainz id {id}")
 
@@ -127,18 +120,6 @@ class MBFactory(ABC):
 
     @abstractmethod
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
-        pass
-
-    @abstractmethod
-    def get_medium_from_release(self, in_obj: Release) -> Medium:
-        pass
-
-    @abstractmethod
-    def get_medium_from_track(self, in_obj: Track) -> Medium:
-        pass
-
-    @abstractmethod
-    def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
         pass
 
     @abstractmethod
@@ -177,6 +158,12 @@ class MBFactory(ABC):
     def performance_of_recording(
         self, recording: Recording
     ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+        pass
+
+    @abstractmethod
+    def performances_of_work(
+        self, work: Work
+    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
         pass
 
     def __str__(self):
@@ -239,18 +226,6 @@ class CacheFactory(MBFactory):
             self._cache[rec_id] = self.backup_factory.get_recording(rec_id)
         return self._cache[rec_id]
 
-    def get_medium_from_release(self, in_obj: Release) -> Medium:
-        return self.backup_factory.get_medium_from_release(in_obj)
-
-    def get_medium_from_track(self, in_obj: Track) -> Medium:
-        return self.backup_factory.get_medium_from_track(in_obj)
-
-    def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
-        t_id = TrackID(in_obj)
-        if t_id not in self._cache:
-            self._cache[t_id] = self.backup_factory.get_track(t_id)
-        return self._cache[t_id]
-
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
         w_id = WorkID(in_obj)
         if w_id not in self._cache:
@@ -273,6 +248,11 @@ class CacheFactory(MBFactory):
         self, recording: Recording
     ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
         return self.backup_factory.performance_of_recording(recording)
+
+    def performances_of_work(
+        self, work: Work
+    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
+        return self.backup_factory.performances_of_work(work)
 
 
 class DBFactory(MBFactory):
@@ -345,10 +325,7 @@ class DBFactory(MBFactory):
             if rg is None:
                 raise MBIDNotExistsError(f"No Release Group with ID '{str(in_obj)}'")
 
-            artists = [
-                self.get_artist(ArtistID(str(a.artist.gid)))
-                for a in rg.artist_credit.artists
-            ]
+            artist_ids = [ArtistID(str(a.artist.gid)) for a in rg.artist_credit.artists]
             primary_type = ReleaseType(rg.type.name) if rg.type is not None else None
             types = ([primary_type] if primary_type is not None else []) + [
                 ReleaseType(s.secondary_type.name) for s in rg.secondary_types
@@ -377,7 +354,7 @@ class DBFactory(MBFactory):
                 _db_id=rg.id,
                 factory=self.main_factory,
                 title=rg.name,
-                artists=artists,
+                artist_ids=artist_ids,
                 aliases=aliases,
                 primary_type=primary_type,
                 types=types,
@@ -405,9 +382,8 @@ class DBFactory(MBFactory):
             if rel is None:
                 raise MBIDNotExistsError(f"No Release with ID '{str(in_obj)}'")
 
-            artists = [
-                self.get_artist(ArtistID(str(a.artist.gid)))
-                for a in rel.artist_credit.artists
+            artist_ids = [
+                ArtistID(str(a.artist.gid)) for a in rel.artist_credit.artists
             ]
             first_release_date: datetime.date = (
                 util.parse_partial_date(rel.first_release.date)
@@ -432,7 +408,7 @@ class DBFactory(MBFactory):
             release = Release(
                 id=ReleaseID(str(rel.gid)),
                 _db_id=rel.id,
-                artists=artists,
+                artist_ids=artist_ids,
                 title=rel.name,
                 aliases=aliases,
                 first_release_date=first_release_date,
@@ -442,7 +418,47 @@ class DBFactory(MBFactory):
                 disambiguation=rel.comment,
                 factory=self.main_factory,
             )
+            stmt = sa.select(mbdata.models.Medium).where(
+                mbdata.models.Medium.release == rel
+            )
+            ms: list[mbdata.models.Medium] = session.scalars(stmt).all()
 
+            media = []
+            for m in ms:
+                medium = Medium(
+                    _db_id=m.id,
+                    title=m.name if m.name != "" else rel.name,
+                    position=m.position,
+                    release_id=ReleaseID(str(rel.gid)),
+                    track_count=m.track_count,
+                    factory=self.main_factory,
+                    format=m.format.name if m.format is not None else None,
+                )
+
+                m_tracks = []
+                for tr in m.tracks:
+                    m_tracks.append(
+                        Track(
+                            id=TrackID(str(tr.gid)),
+                            _db_id=tr.id,
+                            title=tr.name,
+                            artist_ids=[
+                                ArtistID(str(a.artist.gid))
+                                for a in tr.artist_credit.artists
+                            ],
+                            artist_credit_phrase=tr.artist_credit.name,
+                            position=tr.position,
+                            number=tr.number,
+                            length=tr.length,
+                            medium=medium,
+                            recording_id=RecordingID(str(tr.recording.gid)),
+                            factory=self.main_factory,
+                        )
+                    )
+                medium.tracks = m_tracks
+                media.append(medium)
+
+        release.mediums = media
         return release
 
     @lru_cache
@@ -479,9 +495,8 @@ class DBFactory(MBFactory):
             recording = Recording(
                 id=RecordingID(str(rec.gid)),
                 _db_id=rec.id,
-                artists=[
-                    self.get_artist(ArtistID(str(a.artist.gid)))
-                    for a in rec.artist_credit.artists
+                artist_ids=[
+                    ArtistID(str(a.artist.gid)) for a in rec.artist_credit.artists
                 ],
                 title=rec.name,
                 artist_credit_phrase=rec.artist_credit.name,
@@ -491,71 +506,6 @@ class DBFactory(MBFactory):
                 factory=self.main_factory,
             )
         return recording
-
-    def get_medium_from_release(self, in_obj: Release) -> Medium:
-        # TODO: Implement
-        raise NotImplementedError
-
-    def get_medium_from_track(self, in_obj: Track) -> Medium:
-        # TODO: Implement
-        raise NotImplementedError
-
-    @lru_cache
-    def get_medium(
-        self, in_obj: MediumID | str | uuid.UUID | mbdata.models.Medium
-    ) -> Medium:
-        if isinstance(in_obj, mbdata.models.Medium):
-            with db.get_db_session() as session:
-                if isinstance(in_obj, mbdata.models.Medium):
-                    m: mbdata.models.Medium = session.merge(in_obj)
-
-                medium = Medium(
-                    _db_id=m.id,
-                    title=m.name,
-                    position=m.position,
-                    release_id=ReleaseID(str(m.release.gid)),
-                    tracks_ids=[TrackID(str(t.gid)) for t in m.tracks],
-                    track_count=m.track_count,
-                    format=m.format.name if m.format is not None else None,
-                    factory=self.main_factory,
-                )
-                return medium
-
-        else:
-            raise NotImplementedError
-
-    @lru_cache
-    def get_track(self, in_obj: TrackID | str | uuid.UUID) -> Track:
-        with db.get_db_session() as session:
-            if isinstance(in_obj, str):
-                in_obj = TrackID(in_obj)
-
-            stmt = sa.select(mbdata.models.Track).where(
-                mbdata.models.Track.gid == str(in_obj)
-            )
-            tr: mbdata.models.Track = session.scalar(stmt)
-
-            artists = [
-                self.get_artist(ArtistID(str(a.artist.gid)))
-                for a in tr.artist_credit.artists
-            ]
-
-            medium: Medium = self.get_medium(tr.medium)
-
-            track = Track(
-                id=TrackID(str(tr.gid)),
-                _db_id=tr.id,
-                artists=artists,
-                title=tr.name,
-                artist_credit_phrase=tr.artist_credit.name,
-                position=tr.position,
-                number=tr.number,
-                length=tr.length,
-                medium=medium,
-                recording_id=RecordingID(str(tr.recording.gid)),
-                factory=self.main_factory,
-            )
-            return track
 
     @lru_cache
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
@@ -578,7 +528,7 @@ class DBFactory(MBFactory):
                 _db_id=w.id,
                 title=w.name,
                 disambiguation=w.comment,
-                type=w.type.name if w.type is not None else None,
+                work_type=w.type.name if w.type is not None else None,
                 factory=self.main_factory,
             )
             return work
@@ -684,6 +634,12 @@ class DBFactory(MBFactory):
 
             return ws, types
 
+    def performances_of_work(
+        self, work: Work
+    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
+        # TODO: Implement
+        raise NotImplementedError
+
 
 class APIFactory(MBFactory):
     _logger: logging.Logger = logging.getLogger(__name__)
@@ -756,10 +712,7 @@ class APIFactory(MBFactory):
             _db_id=None,
             factory=self.main_factory,
             title=result["title"],
-            artists=[
-                self.main_factory.get_artist(a["artist"]["id"])
-                for a in result["artist-credit"]
-            ],
+            artist_ids=[ArtistID(a["artist"]["id"]) for a in result["artist-credit"]],
             aliases=[result["title"]]
             + ([a["name"] for a in result["aliases"]] if "aliases" in result else []),
             primary_type=ReleaseType(result["primary-type"]),
@@ -774,12 +727,127 @@ class APIFactory(MBFactory):
         return release_group
 
     def get_release(self, in_obj: ReleaseID | str | uuid.UUID) -> Release:
-        # TODO: Implement
-        raise NotImplementedError
+
+        if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
+            in_obj = ReleaseID(in_obj)
+
+        self._logger.debug(f"Looking up release {in_obj} via Musicbrainz API.")
+
+        result = musicbrainzngs.get_release_by_id(
+            id=str(in_obj),
+            includes=[
+                "aliases",
+                "artist-credits",
+                "release-groups",
+                "recordings",
+                "media",
+            ],
+            release_status=[ReleaseStatus.OFFICIAL],
+        )
+
+        first_release_date = util.parse_partial_date(result["date"])
+
+        media = []
+        for m in result["media"]:
+            medium = Medium(
+                title=m["title"] if m["title"] != "" else result["title"],
+                position=m["position"],
+                release_id=ReleaseID(result["id"]),
+                track_count=m["track-count"],
+                factory=self.main_factory,
+                format=m["format"],
+            )
+
+            m_tracks = []
+            for t in m["tracks"]:
+                m_tracks.append(
+                    Track(
+                        id=TrackID(t["id"]),
+                        title=t["title"],
+                        artist_ids=[
+                            ArtistID(a["artist"]["id"]) for a in t["artist-credit"]
+                        ],
+                        artist_credit_phrase=self._artist_credit_phrase(
+                            t["artist-credit"]
+                        ),
+                        position=t["position"],
+                        number=t["number"],
+                        length=t["length"],
+                        medium=medium,
+                        recording_id=RecordingID(t["recording"]["id"]),
+                        factory=self.main_factory,
+                    )
+                )
+            medium.tracks = m_tracks
+            media.append(medium)
+
+        release = Release(
+            id=in_obj,
+            _db_id=None,
+            factory=self.main_factory,
+            title=result["title"],
+            artist_ids=[ArtistID(a["artist"]["id"]) for a in result["artist-credit"]],
+            release_group_id=ReleaseGroupID(result["release-group"]["id"]),
+            aliases=[result["title"]]
+            + ([a["name"] for a in result["aliases"]] if "aliases" in result else []),
+            disambiguation=result["disambiguation"],
+            artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
+            first_release_date=first_release_date,
+        )
+        release.mediums = media
+        return release
 
     def get_recording(self, in_obj: RecordingID | str | uuid.UUID) -> Recording:
-        # TODO: Implement
-        raise NotImplementedError
+        if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
+            in_obj = RecordingID(in_obj)
+
+        self._logger.debug(f"Looking up recording {in_obj} via Musicbrainz API.")
+
+        result = musicbrainzngs.get_recording_by_id(
+            id=str(in_obj),
+            includes=["aliases", "artist-credits", "releases", "work-rels"],
+            release_status=[ReleaseStatus.OFFICIAL],
+        )
+
+        first_release_date = util.parse_partial_date(result["first-release-date"])
+
+        work_ids = []
+        work_atts = []
+        if "relations" in result:
+            for r in result["relations"]:
+                if (
+                    r["target-type"] == "work"
+                    and r["type"] == "performance"
+                    and r["direction"] == "forward"
+                ):
+                    wid = WorkID(r["work"]["id"])
+                    if wid not in work_ids:
+                        work_ids.append(wid)
+                    atts = [
+                        PerformanceWorkAttributes(a) for a in r["work"]["attributes"]
+                    ]
+                    for a in atts:
+                        if a not in work_atts:
+                            work_atts.append(a)
+        works = [self.main_factory.get_work(w_id) for w_id in work_ids]
+
+        recording = Recording(
+            id=in_obj,
+            _db_id=None,
+            factory=self.main_factory,
+            title=result["title"],
+            artist_ids=[ArtistID(a["artist"]["id"]) for a in result["artist-credit"]],
+            aliases=[result["title"]]
+            + ([a["name"] for a in result["aliases"]] if "aliases" in result else []),
+            disambiguation=result["disambiguation"],
+            artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
+            first_release_date=first_release_date,
+        )
+
+        recording._performance_type = work_atts
+        recording._performance_of = works
+
+        return recording
 
     def get_medium_from_release(self, in_obj: Release) -> Medium:
         # TODO: Implement
@@ -794,8 +862,51 @@ class APIFactory(MBFactory):
         raise NotImplementedError
 
     def get_work(self, in_obj: WorkID | str | uuid.UUID) -> Work:
-        # TODO: Implement
-        raise NotImplementedError
+
+        if isinstance(in_obj, str) or isinstance(in_obj, uuid.UUID):
+            in_obj = WorkID(in_obj)
+
+        self._logger.debug(f"Looking up work {in_obj} via Musicbrainz API.")
+
+        result = musicbrainzngs.get_work_by_id(
+            id=str(in_obj), includes=["aliases", "recording-rels"]
+        )
+
+        performance_ids: dict[PerformanceWorkAttributes, list[RecordingID]] = {
+            PerformanceWorkAttributes(pwa): [] for pwa in PerformanceWorkAttributes
+        }
+        for r in result["relations"]:
+            if (
+                r["target-type"] == "recording"
+                and r["direction"] == "backward"
+                and r["type"] == "performance"
+            ):
+                r_id = RecordingID(r["recording"]["id"])
+                if r_id not in performance_ids[PerformanceWorkAttributes.ALL]:
+                    performance_ids[PerformanceWorkAttributes.ALL].append(r_id)
+
+                if (
+                    len(r["attributes"]) == 0
+                    and r_id not in performance_ids[PerformanceWorkAttributes.NONE]
+                ):
+                    performance_ids[PerformanceWorkAttributes.NONE].append(r_id)
+
+                for a in r["attributes"]:
+                    pwa = PerformanceWorkAttributes(a)
+                    performance_ids[pwa].append(r_id)
+
+        work = Work(
+            id=in_obj,
+            _db_id=None,
+            factory=self.main_factory,
+            title=result["title"],
+            disambiguation=result["disambiguation"],
+            work_type=result["type"] if "type" in result else None,
+        )
+
+        work._performance_ids = performance_ids
+
+        return work
 
     def update_artist_id(self, mbid: ArtistID) -> ArtistID:
         # TODO: Implement
@@ -816,5 +927,13 @@ class APIFactory(MBFactory):
     def performance_of_recording(
         self, recording: Recording
     ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
-        # TODO: Implement
-        raise NotImplementedError
+
+        r = self.get_recording(recording.id)
+        return r._performance_of.copy(), r._performance_type.copy()
+
+    def performances_of_work(
+        self, work: Work
+    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
+
+        w = self.get_work(work.id)
+        return w._performances.copy()

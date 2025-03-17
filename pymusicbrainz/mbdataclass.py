@@ -43,7 +43,7 @@ class Artist(MBDataObject):
     sort_name: str
     disambiguation: str
 
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
     aliases: list[str] = field(default_factory=list)
     artist_type: Optional[str] = field(default=None)
     country: Optional[str] = field(default=None)
@@ -142,7 +142,7 @@ class ReleaseGroup(MBDataObject):
     id: ReleaseGroupID
     title: str
     disambiguation: str
-    artists: list[Artist]
+    artist_ids: list[ArtistID]
     types: list[ReleaseType]
     artist_credit_phrase: str
     is_va: bool
@@ -150,8 +150,12 @@ class ReleaseGroup(MBDataObject):
     primary_type: Optional[ReleaseType] = None
     aliases: list[str] = field(default_factory=list)
     first_release_date: Optional[datetime.date] = None
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
     _logger: logging.Logger = logging.getLogger(__name__)
+
+    @property
+    def artists(self) -> list[Artist]:
+        return [self.factory.get_artist(a) for a in self.artist_ids]
 
     @property
     def is_studio_album(self) -> bool:
@@ -257,16 +261,21 @@ class ReleaseGroup(MBDataObject):
 class Release(MBDataObject):
     id: ReleaseID
     title: str
-    artists: list[Artist]
+    artist_ids: list[ArtistID]
     release_group_id: ReleaseGroupID
     artist_credit_phrase: str
     disambiguation: str
 
+    mediums: list[Medium] = field(default_factory=list, init=False)
     first_release_date: Optional[datetime.date] = None
     aliases: list[str] = field(default_factory=list)
     countries: list[str] = field(default_factory=list)
     _logger: logging.Logger = logging.getLogger(__name__)
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
+
+    @property
+    def artists(self) -> list[Artist]:
+        return [self.factory.get_artist(a) for a in self.artist_ids]
 
     @property
     def is_country_of_artist(self) -> bool:
@@ -285,14 +294,11 @@ class Release(MBDataObject):
         return self.factory.get_release_group(self.release_group_id)
 
     @property
-    def mediums(self) -> list["Medium"]:
-        # TODO: implement
-        raise NotImplementedError
-
-    @property
     def tracks(self) -> list["Track"]:
-        # TODO: implement
-        raise NotImplementedError
+        tracks = []
+        for m in self.mediums:
+            tracks.extend(m.tracks)
+        return tracks
 
     @property
     def recordings(self) -> list[Recording]:
@@ -386,7 +392,7 @@ class Release(MBDataObject):
 @dataclass
 class Recording(MBDataObject):
     id: RecordingID
-    artists: list[Artist]
+    artist_ids: list[ArtistID]
     title: str
     artist_credit_phrase: str
     disambiguation: str
@@ -395,11 +401,15 @@ class Recording(MBDataObject):
     aliases: list[str] = field(default_factory=list)
     countries: list[str] = field(default_factory=list)
     _logger: logging.Logger = logging.getLogger(__name__)
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
 
     def __post_init__(self):
         self._performance_type = None
         self._performance_of = None
+
+    @property
+    def artists(self) -> list[Artist]:
+        return [self.factory.get_artist(a) for a in self.artist_ids]
 
     @property
     def performance_type(self) -> list[PerformanceWorkAttributes]:
@@ -546,23 +556,21 @@ class Medium(object):
     title: str
     position: int
     release_id: ReleaseID
-    tracks_ids: list[TrackID]
+    tracks: list[Track] = field(default_factory=list, init=False)
     track_count: int
     factory: factory.MBFactory
 
     format: Optional[str] = None
 
-    id: MediumID = None  # mediums don't have an id.
     _logger: logging.Logger = logging.getLogger(__name__)
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
+
+    def __post_init__(self):
+        self._tracks = None
 
     @property
     def release(self) -> Release:
         return self.factory.get_release(self.release_id)
-
-    @property
-    def tracks(self) -> list[Track]:
-        return [self.factory.get_track(t) for t in self.tracks_ids]
 
     def __str__(self):
         return f"'{self.release.artist_credit_phrase}' - '{self.release.title}'" + (
@@ -587,7 +595,7 @@ class Medium(object):
 @dataclass
 class Track(MBDataObject):
     id: TrackID
-    artists: list[Artist]
+    artist_ids: list[ArtistID]
     title: str
     artist_credit_phrase: str
     position: int
@@ -596,8 +604,12 @@ class Track(MBDataObject):
     medium: Medium
     recording_id: RecordingID
 
-    _db_id: Optional[str] = field(default=None)
+    _db_id: Optional[int] = field(default=None)
     _logger: logging.Logger = logging.getLogger(__name__)
+
+    @property
+    def artists(self) -> list[Artist]:
+        return [self.factory.get_artist(a) for a in self.artist_ids]
 
     @property
     def recording(self) -> Recording:
@@ -638,14 +650,25 @@ class Work(MBDataObject):
     title: str
     disambiguation: str
 
-    type: Optional[str] = None
-    _db_id: Optional[str] = field(default=None)
+    work_type: Optional[str] = None
+    _db_id: Optional[int] = field(default=None)
     _logger: logging.Logger = logging.getLogger(__name__)
+
+    def __post_init__(self):
+        self._performance_ids = None
+        self._performances = None
 
     @property
     def performances(self) -> dict[PerformanceWorkAttributes, list[Recording]]:
-        # TODO: Implement
-        raise NotImplementedError
+        if self._performances is None:
+            if self._performance_ids is None:
+                self._performances = self.factory.performances_of_work(self)
+            else:
+                self._performances = {
+                    k: [self.factory.get_recording(r) for r in v]
+                    for k, v in self._performance_ids.items()
+                }
+        return self._performances
 
     def performance_by_type(
         self, types: list[PerformanceWorkAttributes]
