@@ -4,8 +4,8 @@ import datetime
 import pathlib
 import shelve
 from abc import ABC, abstractmethod
-from functools import lru_cache
-from typing import MutableMapping, Optional
+from functools import lru_cache, cache
+from typing import MutableMapping, Optional, Iterator
 
 import mbdata.models
 import musicbrainzngs
@@ -13,8 +13,20 @@ import sqlalchemy as sa
 
 from . import db, util, musicbrainz_api
 from .constants import VA_ARTIST_ID
-from .musicbrainz_types import ReleaseType, ReleaseStatus, PerformanceWorkAttributes
-from .exceptions import FactoryNotAvailable, NotFoundError, MBIDNotExistsError
+from .musicbrainz_types import (
+    ReleaseType,
+    ReleaseStatus,
+    PerformanceWorkAttributes,
+    SecondaryTypeList,
+    PRIMARY_TYPES,
+    SECONDARY_TYPES,
+)
+from .exceptions import (
+    FactoryNotAvailable,
+    NotFoundError,
+    MBIDNotExistsError,
+    MBApiError,
+)
 from .identifiers import *
 from .mbdataclass import (
     Artist,
@@ -155,15 +167,22 @@ class MBFactory(ABC):
         pass
 
     @abstractmethod
-    def performance_of_recording(
-        self, recording: Recording
-    ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
-        pass
-
-    @abstractmethod
-    def performances_of_work(
-        self, work: Work
-    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
+    def get_artist_release_group_ids_(
+        self,
+        artist: Artist,
+        primary_type: ReleaseType,
+        secondary_types: SecondaryTypeList,
+        credited: bool,
+        contributing: bool,
+    ) -> list[ReleaseGroupID]:
+        """Get all release groups for this artist
+        :param artist: artist to get release groups for
+        :param primary_type: only get release groups with this primary type
+        :param secondary_types:  only get release groups with this secondary type. When equal to primary_type, only return release groups with no secondary type
+        :param credited: Include release groups credited to this artist
+        :param contributing: Include release groups where this artist contributes but is not credited
+        :return:
+        """
         pass
 
     def __str__(self):
@@ -244,15 +263,21 @@ class CacheFactory(MBFactory):
     def update_recording_id(self, mbid: RecordingID) -> RecordingID:
         return self.backup_factory.update_recording_id(mbid)
 
-    def performance_of_recording(
-        self, recording: Recording
-    ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
-        return self.backup_factory.performance_of_recording(recording)
-
-    def performances_of_work(
-        self, work: Work
-    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
-        return self.backup_factory.performances_of_work(work)
+    def get_artist_release_group_ids_(
+        self,
+        artist: Artist,
+        primary_type: ReleaseType,
+        secondary_types: SecondaryTypeList,
+        credited: bool,
+        contributing: bool,
+    ) -> list[ReleaseGroupID]:
+        return self.backup_factory.get_artist_release_group_ids_(
+            artist=artist,
+            primary_type=primary_type,
+            secondary_types=secondary_types,
+            credited=credited,
+            contributing=contributing,
+        )
 
 
 class DBFactory(MBFactory):
@@ -349,6 +374,13 @@ class DBFactory(MBFactory):
                 if rga.name not in aliases:
                     aliases.append(rga.name)
 
+            # get release ids
+            stmt = sa.select(mbdata.models.Release).where(
+                mbdata.models.Release.release_group == rg
+            )
+            rels = session.scalars(stmt)
+            release_ids = [ReleaseID(r.gid) for r in rels]
+
             release_group = ReleaseGroup(
                 id=in_obj,
                 _db_id=rg.id,
@@ -362,6 +394,7 @@ class DBFactory(MBFactory):
                 artist_credit_phrase=rg.artist_credit.name,
                 first_release_date=first_release_date,
                 is_va=(rg.artist_credit_id == 1),
+                release_ids=release_ids,
             )
 
             return release_group
@@ -492,6 +525,37 @@ class DBFactory(MBFactory):
                 if ra.name not in aliases:
                     aliases.append(ra.name)
 
+            # performances
+            stmt = (
+                sa.select(mbdata.models.Work, mbdata.models.LinkAttribute)
+                .select_from(
+                    sa.join(
+                        sa.join(mbdata.models.LinkRecordingWork, mbdata.models.Work),
+                        sa.join(mbdata.models.LinkAttribute, mbdata.models.Link),
+                        isouter=True,
+                    )
+                )
+                .where(mbdata.models.LinkRecordingWork.entity0 == rec)
+            )
+            res = session.execute(stmt)
+
+            work_ids = []
+            work_atts = []
+            w: mbdata.models.Work
+            la: mbdata.models.LinkAttribute
+
+            for w, la in res:
+
+                wid = WorkID(w.gid)
+                if wid not in work_ids:
+                    work_ids.append(wid)
+                if la is not None:
+                    a = PerformanceWorkAttributes(la.attribute_type.name)
+                    if a not in work_atts:
+                        work_atts.append(a)
+            if len(work_atts) == 0:
+                work_atts = [PerformanceWorkAttributes.NONE]
+
             recording = Recording(
                 id=RecordingID(str(rec.gid)),
                 _db_id=rec.id,
@@ -504,6 +568,8 @@ class DBFactory(MBFactory):
                 first_release_date=first_release_date,
                 aliases=aliases,
                 factory=self.main_factory,
+                performance_type=work_atts,
+                performance_of_ids=work_ids,
             )
         return recording
 
@@ -523,6 +589,40 @@ class DBFactory(MBFactory):
             if w is None:
                 raise MBIDNotExistsError(f"No Work with ID '{str(in_obj)}'")
 
+            # get performances
+            performance_ids: dict[PerformanceWorkAttributes, list[RecordingID]] = {
+                PerformanceWorkAttributes(pwa): [] for pwa in PerformanceWorkAttributes
+            }
+            stmt = (
+                sa.select(mbdata.models.Recording, mbdata.models.LinkAttribute)
+                .select_from(
+                    sa.join(
+                        sa.join(
+                            mbdata.models.LinkRecordingWork, mbdata.models.Recording
+                        ),
+                        sa.join(mbdata.models.LinkAttribute, mbdata.models.Link),
+                        isouter=True,
+                    )
+                )
+                .where(mbdata.models.LinkRecordingWork.entity1 == w)
+            )
+            res = session.execute(stmt)
+
+            r: mbdata.models.Recording
+            la: mbdata.models.LinkAttribute
+            for r, la in res:
+                rid = RecordingID(r.gid)
+                if rid not in performance_ids[PerformanceWorkAttributes.ALL]:
+                    performance_ids[PerformanceWorkAttributes.ALL].append(rid)
+
+                if la is None:
+                    if rid not in performance_ids[PerformanceWorkAttributes.NONE]:
+                        performance_ids[PerformanceWorkAttributes.NONE].append(rid)
+                else:
+                    att = PerformanceWorkAttributes(la.attribute_type.name)
+                    if rid not in performance_ids[att]:
+                        performance_ids[att].append(rid)
+
             work = Work(
                 id=WorkID(str(w.gid)),
                 _db_id=w.id,
@@ -530,7 +630,9 @@ class DBFactory(MBFactory):
                 disambiguation=w.comment,
                 work_type=w.type.name if w.type is not None else None,
                 factory=self.main_factory,
+                performance_ids=performance_ids,
             )
+
             return work
 
     def update_artist_id(self, mbid: ArtistID) -> ArtistID:
@@ -601,44 +703,108 @@ class DBFactory(MBFactory):
             else:
                 return RecordingID(str(res))
 
-    @lru_cache
-    def performance_of_recording(
-        self, recording: Recording
-    ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
+    def get_artist_release_group_ids_(
+        self,
+        artist: Artist,
+        primary_type: ReleaseType,
+        secondary_types: SecondaryTypeList,
+        credited: bool,
+        contributing: bool,
+    ) -> list[ReleaseGroupID]:
+
+        s = f"Fetching"
+        if primary_type is not None:
+            s = s + f" {primary_type}s"
+        else:
+            s = s + " release groups"
+        s = (
+            s
+            + f" {'credited to' if credited else ''}{'/' if credited and contributing else ''}{'contributed to by' if contributing else ''}"
+        )
+        s = s + f" artist {artist.name} [{artist.id}]"
+        if secondary_types == [primary_type]:
+            s = s + f" with no secondary types"
+        else:
+            if len(secondary_types) > 0:
+                s = s + f" with secondary types {', '.join(secondary_types)}"
+
+        self._logger.debug(s)
+
         with db.get_db_session() as session:
-            if recording._db_id is None:
-                # TODO implement: determine correct id if recording didn't come from DBFactory.
-                raise NotImplementedError
-
-            stmt = sa.select(mbdata.models.LinkRecordingWork).where(
-                mbdata.models.LinkRecordingWork.entity0_id == str(recording._db_id)
+            stmt = self._release_group_query(
+                artist=artist,
+                primary_type=primary_type,
+                secondary_types=secondary_types,
+                credited=credited,
+                contributing=contributing,
             )
-            res: list[mbdata.models.LinkRecordingWork] = session.scalars(stmt).all()
-            if res is None or len(res) == 0:
-                return [], []
+            result: list[mbdata.models.ReleaseGroup] = session.scalars(stmt).all()
+            self._logger.debug(f"Found {len(result)} release groups matching criteria")
+
+        return [ReleaseGroupID(r.gid) for r in result]
+
+    def _release_group_query(
+        self,
+        artist: Artist,
+        primary_type: ReleaseType,
+        secondary_types: SecondaryTypeList,
+        credited: bool,
+        contributing: bool,
+    ) -> sa.Select:
+        """Create SQL query to get all release groups for this artist
+
+        :param primary_type: only get release groups with this primary type
+        :param secondary_types:  only get release groups with this secondary type.
+        :param credited: Include release groups credited to this artist
+        :param contributing: Include release groups where this artist contributes but is not credited
+        :return:
+        """
+
+        # base: all  release groups for artist
+        stmt = (
+            sa.select(mbdata.models.ReleaseGroup)
+            .distinct()
+            .join(mbdata.models.ArtistReleaseGroup)
+            .where(mbdata.models.ArtistReleaseGroup.artist.has(gid=str(artist.id)))
+            .where(~mbdata.models.ArtistReleaseGroup.unofficial)
+        )
+
+        if primary_type is ReleaseType.NONE:
+            return stmt.where(sa.false())
+
+        if ReleaseType.NONE in secondary_types:
+            secondary_types = [ReleaseType.NONE]
+
+        # credited/contributing
+        if credited:
+            if not contributing:
+                stmt = stmt.where(~mbdata.models.ArtistReleaseGroup.is_track_artist)
+        else:
+            if contributing:
+                stmt = stmt.where(mbdata.models.ArtistReleaseGroup.is_track_artist)
             else:
-                ws = [self.get_work(r.work.gid) for r in res]
+                raise MBApiError("Query would result in no release groups")
 
-            types = []
-            for r in res:
-                stmt = sa.select(mbdata.models.LinkAttribute).where(
-                    mbdata.models.LinkAttribute.link == r.link
+        # primary type
+        if primary_type is not ReleaseType.ALL:
+            stmt = stmt.where(
+                mbdata.models.ArtistReleaseGroup.primary_type
+                == PRIMARY_TYPES[primary_type]
+            )
+
+        if ReleaseType.NONE in secondary_types:
+            stmt = stmt.where(
+                mbdata.models.ArtistReleaseGroup.secondary_types.is_(None)
+            )
+        elif ReleaseType.ALL not in secondary_types:
+            if len(secondary_types) > 0:
+                types = [SECONDARY_TYPES[t] for t in secondary_types]
+                where_clause = (
+                    mbdata.models.ArtistReleaseGroup.secondary_types.contains(types)
                 )
-                res2: list[mbdata.models.LinkAttribute] = session.scalars(stmt).all()
+                stmt = stmt.where(where_clause)
 
-                [
-                    types.append(PerformanceWorkAttributes(att.attribute_type.name))
-                    for att in res2
-                    if PerformanceWorkAttributes(att.attribute_type.name) not in types
-                ]
-
-            return ws, types
-
-    def performances_of_work(
-        self, work: Work
-    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
-        # TODO: Implement
-        raise NotImplementedError
+        return stmt
 
 
 class APIFactory(MBFactory):
@@ -700,12 +866,14 @@ class APIFactory(MBFactory):
 
         result = musicbrainzngs.get_release_group_by_id(
             id=str(in_obj),
-            includes=["aliases", "artist-credits"],
+            includes=["aliases", "artist-credits", "releases"],
         )
 
         first_release_date = util.parse_partial_date(result["first-release-date"])
 
         va = ArtistID(result["artist-credit"][0]["artist"]["id"]) == VA_ARTIST_ID
+
+        r_ids = [ReleaseID(r["id"]) for r in result["releases"]]
 
         release_group = ReleaseGroup(
             id=in_obj,
@@ -722,6 +890,7 @@ class APIFactory(MBFactory):
             artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
             first_release_date=first_release_date,
             is_va=va,
+            release_ids=r_ids,
         )
 
         return release_group
@@ -829,7 +998,8 @@ class APIFactory(MBFactory):
                     for a in atts:
                         if a not in work_atts:
                             work_atts.append(a)
-        works = [self.main_factory.get_work(w_id) for w_id in work_ids]
+        if len(work_atts) == 0:
+            work_atts = [PerformanceWorkAttributes.NONE]
 
         recording = Recording(
             id=in_obj,
@@ -842,10 +1012,9 @@ class APIFactory(MBFactory):
             disambiguation=result["disambiguation"],
             artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
             first_release_date=first_release_date,
+            performance_type=work_atts,
+            performance_of_ids=work_ids,
         )
-
-        recording._performance_type = work_atts
-        recording._performance_of = works
 
         return recording
 
@@ -902,9 +1071,8 @@ class APIFactory(MBFactory):
             title=result["title"],
             disambiguation=result["disambiguation"],
             work_type=result["type"] if "type" in result else None,
+            performance_ids=performance_ids,
         )
-
-        work._performance_ids = performance_ids
 
         return work
 
@@ -924,16 +1092,12 @@ class APIFactory(MBFactory):
         # TODO: Implement
         raise NotImplementedError
 
-    def performance_of_recording(
-        self, recording: Recording
-    ) -> tuple[list[Work], list[PerformanceWorkAttributes]]:
-
-        r = self.get_recording(recording.id)
-        return r._performance_of.copy(), r._performance_type.copy()
-
-    def performances_of_work(
-        self, work: Work
-    ) -> dict[PerformanceWorkAttributes, list[Recording]]:
-
-        w = self.get_work(work.id)
-        return w._performances.copy()
+    def get_artist_release_group_ids_(
+        self,
+        artist: Artist,
+        primary_type: ReleaseType,
+        secondary_types: SecondaryTypeList,
+        credited: bool,
+        contributing: bool,
+    ) -> list["ReleaseGroupID"]:
+        raise NotImplementedError  # TODO: implement

@@ -4,7 +4,7 @@ import datetime
 import logging
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Iterator
 
 import inflection
 import rapidfuzz
@@ -19,7 +19,7 @@ from .identifiers import (
     TrackID,
     WorkID,
 )
-from .musicbrainz_types import ReleaseType, PerformanceWorkAttributes
+from .musicbrainz_types import ReleaseType, PerformanceWorkAttributes, SecondaryTypeList
 
 
 @dataclass
@@ -30,6 +30,9 @@ class MBDataObject(ABC):
     @property
     def type(self) -> str:
         return inflection.dasherize(inflection.underscore(self.__class__.__name__))
+
+    def __repr__(self):
+        return f"({self.__class__.__name__}(id={self.id})"
 
     @property
     def url(self) -> str:
@@ -50,35 +53,103 @@ class Artist(MBDataObject):
 
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    @property
-    def release_groups(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def __post_init__(self):
+        self._release_group_ids = None
+        self._album_ids = None
+        self._single_ids = None
+        self._ep_ids = None
+        self._studio_album_ids = None
+        self._soundtrack_ids = None
 
-    @property
-    def albums(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_release_group_ids(self) -> list[ReleaseGroupID]:
+        if self._release_group_ids is None:
+            self._release_group_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.ALL,
+                secondary_types=SecondaryTypeList([ReleaseType.ALL]),
+                credited=True,
+                contributing=False,
+            )
+        return self._release_group_ids
 
-    @property
-    def singles(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_release_groups(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_release_group_ids():
+            yield self.factory.get_release_group(rg_id)
 
-    @property
-    def eps(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_album_ids(self) -> list[ReleaseGroupID]:
+        if self._album_ids is None:
+            self._album_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.ALBUM,
+                secondary_types=SecondaryTypeList([ReleaseType.ALL]),
+                credited=True,
+                contributing=False,
+            )
+        return self._album_ids
 
-    @property
-    def studio_albums(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_albums(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_album_ids():
+            yield self.factory.get_release_group(rg_id)
 
-    @property
-    def soundtracks(self) -> list["ReleaseGroup"]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_single_ids(self) -> list[ReleaseGroupID]:
+        if self._single_ids is None:
+            self._single_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.SINGLE,
+                secondary_types=SecondaryTypeList([ReleaseType.ALL]),
+                credited=True,
+                contributing=False,
+            )
+        return self._single_ids
+
+    def get_singles(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_single_ids():
+            yield self.factory.get_release_group(rg_id)
+
+    def get_ep_ids(self) -> list[ReleaseGroupID]:
+        if self._ep_ids is None:
+            self._ep_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.EP,
+                secondary_types=SecondaryTypeList([ReleaseType.ALL]),
+                credited=True,
+                contributing=False,
+            )
+        return self._ep_ids
+
+    def get_eps(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_ep_ids():
+            yield self.factory.get_release_group(rg_id)
+
+    def get_studio_album_ids(self) -> list[ReleaseGroupID]:
+        if self._studio_album_ids is None:
+            self._studio_album_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.ALBUM,
+                secondary_types=SecondaryTypeList([ReleaseType.NONE]),
+                credited=True,
+                contributing=False,
+            )
+        return self._studio_album_ids
+
+    def get_studio_albums(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_studio_album_ids():
+            yield self.factory.get_release_group(rg_id)
+
+    def get_soundtrack_ids(self) -> list[ReleaseGroupID]:
+        if self._soundtrack_ids is None:
+            self._soundtrack_ids = self.factory.get_artist_release_group_ids_(
+                artist=self,
+                primary_type=ReleaseType.ALBUM,
+                secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),
+                credited=True,
+                contributing=True,
+            )
+        return self._soundtrack_ids
+
+    def get_soundtracks(self) -> Iterator["ReleaseGroup"]:
+        for rg_id in self.get_soundtrack_ids():
+            yield self.factory.get_release_group(rg_id)
 
     def is_sane(self, artist_query: str, cut_off=70) -> bool:
 
@@ -120,18 +191,18 @@ class Artist(MBDataObject):
 
     def __contains__(self, item):
         if isinstance(item, Release):
-            return self in item.artists
+            return self.id in item.artist_ids
         if isinstance(item, ReleaseGroup):
-            return self in item.artists
+            return self.id in item.artist_ids
         if isinstance(item, Recording):
-            return self in item.artists
+            return self.id in item.artist_ids
         if isinstance(item, Medium):
-            return self in item.release.artists
+            return self.id in item.get_release().artist_ids
         if isinstance(item, Track):
-            return self in item.artists
+            return self.id in item.artist_ids
         if isinstance(item, Work):
             # TODO: implement
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
 
     def __hash__(self):
         return hash(self.id)
@@ -147,15 +218,17 @@ class ReleaseGroup(MBDataObject):
     artist_credit_phrase: str
     is_va: bool
 
+    release_ids: list[ReleaseID]
+
     primary_type: Optional[ReleaseType] = None
     aliases: list[str] = field(default_factory=list)
     first_release_date: Optional[datetime.date] = None
     _db_id: Optional[int] = field(default=None)
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    @property
-    def artists(self) -> list[Artist]:
-        return [self.factory.get_artist(a) for a in self.artist_ids]
+    def get_artists(self) -> Iterator[Artist]:
+        for a in self.artist_ids:
+            yield self.factory.get_artist(a)
 
     @property
     def is_studio_album(self) -> bool:
@@ -180,15 +253,21 @@ class ReleaseGroup(MBDataObject):
     def is_eps(self) -> bool:
         return self.primary_type == ReleaseType.EP
 
-    @property
-    def releases(self) -> list[Release]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_releases(self) -> Iterator[Release]:
+        for rel in self.release_ids:
+            yield self.factory.get_release(rel)
 
-    @property
-    def recordings(self) -> list[Recording]:
-        # TODO: implement
-        raise NotImplementedError
+    def get_recording_ids(self) -> Iterator[RecordingID]:
+        yielded = set()
+        for rel in self.get_releases():
+            for rid in rel.recording_ids:
+                if rid not in yielded:
+                    yielded.add(rid)
+                    yield rid
+
+    def get_recordings(self) -> Iterator[Recording]:
+        for rec in self.get_recording_ids():
+            yield self.factory.get_recording(rec)
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
 
@@ -213,6 +292,9 @@ class ReleaseGroup(MBDataObject):
                 f"{self} is not a sane candidate for title {title_query}"
             )
         return artist_ratio > cut_off and title_ratio > cut_off
+
+    def __repr__(self):
+        return f"ReleaseGroup(name={self.title}, id={self.id})"
 
     def __str__(self):
         s1 = f" [{self.primary_type}]" if self.primary_type is not None else ""
@@ -240,18 +322,19 @@ class ReleaseGroup(MBDataObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return item in self.artists
+            return item.id in self.artist_ids
         if isinstance(item, Release):
-            return item.release_group == self
+            return item.release_group_id == self.id
         if isinstance(item, Recording):
-            return item in self.recordings
+            return item.id in self.get_recording_ids()
         if isinstance(item, Medium):
-            return item.release.release_group == self
+            return item.get_release().release_group_id == self.id
         if isinstance(item, Track):
-            return item.release.release_group == self
+            return item.get_release().release_group_id == self.id
         if isinstance(item, Work):
-            # TODO: implement
-            raise NotImplementedError
+            return any(
+                [item.id in rec.get_performances_of() for rec in self.get_recordings()]
+            )
 
     def __hash__(self):
         return hash(self.id)
@@ -261,11 +344,12 @@ class ReleaseGroup(MBDataObject):
 class Release(MBDataObject):
     id: ReleaseID
     title: str
-    artist_ids: list[ArtistID]
+
     release_group_id: ReleaseGroupID
     artist_credit_phrase: str
     disambiguation: str
 
+    artist_ids: list[ArtistID]
     mediums: list[Medium] = field(default_factory=list, init=False)
     first_release_date: Optional[datetime.date] = None
     aliases: list[str] = field(default_factory=list)
@@ -273,13 +357,12 @@ class Release(MBDataObject):
     _logger: logging.Logger = logging.getLogger(__name__)
     _db_id: Optional[int] = field(default=None)
 
-    @property
-    def artists(self) -> list[Artist]:
-        return [self.factory.get_artist(a) for a in self.artist_ids]
+    def get_artists(self) -> Iterator[Artist]:
+        for a in self.artist_ids:
+            yield self.factory.get_artist(a)
 
-    @property
     def is_country_of_artist(self) -> bool:
-        return any([a.country in self.countries for a in self.artists])
+        return any([a.country in self.countries for a in self.get_artists()])
 
     @property
     def is_international_release(self) -> bool:
@@ -289,21 +372,20 @@ class Release(MBDataObject):
     def is_favorite_country(self) -> bool:
         return any([c in self.countries for c in constants.FAVORITE_COUNTRIES])
 
-    @property
-    def release_group(self) -> ReleaseGroup:
+    def get_release_group(self) -> ReleaseGroup:
         return self.factory.get_release_group(self.release_group_id)
 
-    @property
-    def tracks(self) -> list["Track"]:
-        tracks = []
+    def get_tracks(self) -> Iterator["Track"]:
         for m in self.mediums:
-            tracks.extend(m.tracks)
-        return tracks
+            yield from m.tracks
 
     @property
-    def recordings(self) -> list[Recording]:
-        # TODO: implement
-        raise NotImplementedError
+    def recording_ids(self) -> list[RecordingID]:
+        return [t.recording_id for t in self.get_tracks()]
+
+    def get_recordings(self) -> Iterator[Recording]:
+        for rec in self.recording_ids:
+            yield self.factory.get_recording(rec)
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
         artist_ratio = rapidfuzz.fuzz.WRatio(
@@ -328,6 +410,9 @@ class Release(MBDataObject):
             )
         return artist_ratio > cut_off and title_ratio > cut_off
 
+    def __repr__(self):
+        return f"Release(name={self.title}, id={self.id})"
+
     def __str__(self):
         s1 = (
             f" [{self.countries[0]}]"
@@ -351,18 +436,19 @@ class Release(MBDataObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return item in self.artists
+            return item.id in self.artist_ids
         if isinstance(item, ReleaseGroup):
-            return self.release_group == item
+            return self.release_group_id == item.id
         if isinstance(item, Recording):
-            return item in self.recordings
+            return item.id in self.recording_ids
         if isinstance(item, Medium):
-            return item.release == item
+            return item in self.mediums
         if isinstance(item, Track):
-            return item.release == item
+            return item in self.get_tracks()
         if isinstance(item, Work):
-            # TODO: implement
-            raise NotImplementedError
+            return any(
+                [item in rec.get_performances_of() for rec in self.get_recordings()]
+            )
 
     def __lt__(self, other):
         if isinstance(other, Release):
@@ -396,6 +482,8 @@ class Recording(MBDataObject):
     title: str
     artist_credit_phrase: str
     disambiguation: str
+    performance_type: list[PerformanceWorkAttributes]
+    performance_of_ids: list[WorkID]
 
     first_release_date: Optional[datetime.date] = None
     aliases: list[str] = field(default_factory=list)
@@ -407,25 +495,13 @@ class Recording(MBDataObject):
         self._performance_type = None
         self._performance_of = None
 
-    @property
-    def artists(self) -> list[Artist]:
-        return [self.factory.get_artist(a) for a in self.artist_ids]
+    def get_artists(self) -> Iterator[Artist]:
+        for a in self.artist_ids:
+            yield self.factory.get_artist(a)
 
-    @property
-    def performance_type(self) -> list[PerformanceWorkAttributes]:
-        if self._performance_type is None:
-            self._performance_of, self._performance_type = (
-                self.factory.performance_of_recording(self)
-            )
-        return self._performance_type
-
-    @property
-    def performance_of(self) -> list[Work]:
-        if self._performance_of is None:
-            self._performance_of, self._performance_type = (
-                self.factory.performance_of_recording(self)
-            )
-        return self._performance_of
+    def get_performances_of(self) -> Iterator[Work]:
+        for p in self.performance_of_ids:
+            yield self.factory.get_work(p)
 
     @property
     def is_acappella(self) -> bool:
@@ -459,28 +535,29 @@ class Recording(MBDataObject):
     def is_normal_performance(self) -> bool:
         return len(self.performance_type) == 0
 
-    @property
-    def siblings(self) -> list["Recording"]:
+    def get_siblings(self) -> Iterator["Recording"]:
         result = []
         self._logger.debug(f"Computing siblings of {self}")
-        works = self.performance_of
+        works = self.get_performances_of()
+        yielded = set()
         for work in works:
             if len(self.performance_type) == 0:
-                for r in work.performance_by_type([PerformanceWorkAttributes.NONE]):
-                    if r not in result and r.artists == self.artists:
-                        result.append(r)
+                for r in work.get_performances_by_type(PerformanceWorkAttributes.NONE):
+                    if r.id not in yielded and r.artist_ids == self.artist_ids:
+                        yielded.add(r.id)
+                        yield r
             else:
                 self._logger.debug(
                     f"Recording of types {'/'.join(self.performance_type)}; returning matching siblings of {self.artist_credit_phrase} - {self.title}"
                 )
 
-                result = [
-                    rec
-                    for rec in work.performance_by_type(self.performance_type)
-                    if rec.artists == self.artists
-                ]
-        self._logger.debug(f"Identified {len(result)} siblings")
-        return result
+                for rec in work.get_performances_by_type(self.performance_type):
+                    if rec.artist_ids == self.artist_ids:
+                        yielded.add(rec.id)
+                        yield rec
+
+    def __repr__(self):
+        return f"Recording(name={self.title}, id={self.id})"
 
     def __str__(self):
         s_date = (
@@ -514,20 +591,22 @@ class Recording(MBDataObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return item in self.artists
+            return item.id in self.artist_ids
         if isinstance(item, ReleaseGroup):
-            return self in item.recordings
+            return self.id in item.get_recording_ids()
         if isinstance(item, Release):
-            return self in item.recordings
+            return self.id in item.recording_ids
         if isinstance(item, Medium):
-            return any([self == t.recording for t in item.tracks])
+            return any([self.id == t.recording_id for t in item.tracks])
         if isinstance(item, Track):
-            return item.recording == self
+            return item.recording_id == self.id
         if isinstance(item, Work):
-            return self in item.performances[PerformanceWorkAttributes.ALL]
+            return self.id in item.performance_ids[PerformanceWorkAttributes.ALL]
 
     def is_sane(self, artist_query: str, title_query: str, cut_off=70) -> bool:
-        artist_sane = any([artist.is_sane(artist_query) for artist in self.artists])
+        artist_sane = any(
+            [artist.is_sane(artist_query) for artist in self.get_artists()]
+        )
 
         title_ratio = rapidfuzz.process.extractOne(
             util.flatten_title(recording_name=title_query),
@@ -568,28 +647,28 @@ class Medium(object):
     def __post_init__(self):
         self._tracks = None
 
-    @property
-    def release(self) -> Release:
+    def get_release(self) -> Release:
         return self.factory.get_release(self.release_id)
 
+    def __repr__(self):
+        return f"Medium(name={self.title}, release={self.release_id}, position={self.position}, format={self.format})"
+
     def __str__(self):
-        return f"'{self.release.artist_credit_phrase}' - '{self.release.title}'" + (
-            f" - '{self.title}'" if self.title else ""
-        )
+        return f"'{self.get_release().artist_credit_phrase}' - '{self.get_release().title}' - '{self.title}'"
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return any([item in t.artists for t in self.tracks])
+            return any([item.id in t.artist_ids for t in self.tracks])
         if isinstance(item, ReleaseGroup):
-            return self.release.release_group == item
+            return self.get_release().release_group_id == item.id
         if isinstance(item, Release):
-            return self.release == item
+            return self.release_id == item.id
         if isinstance(item, Recording):
-            return any([item == t.recording for t in self.tracks])
+            return any([item.id == t.recording_id for t in self.tracks])
         if isinstance(item, Track):
             return item in self.tracks
         if isinstance(item, Work):
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
 
 
 @dataclass
@@ -608,40 +687,47 @@ class Track(MBDataObject):
     _logger: logging.Logger = logging.getLogger(__name__)
 
     @property
-    def artists(self) -> list[Artist]:
-        return [self.factory.get_artist(a) for a in self.artist_ids]
+    def release_id(self) -> ReleaseID:
+        return self.medium.release_id
 
-    @property
-    def recording(self) -> Recording:
+    def get_artists(self) -> Iterator[Artist]:
+        for a in self.artist_ids:
+            yield self.factory.get_artist(a)
+
+    def get_recording(self) -> Recording:
         return self.factory.get_recording(self.recording_id)
 
-    @property
-    def release(self) -> Release:
-        return self.medium.release
+    def get_release(self) -> Release:
+        return self.medium.get_release()
 
     def __lt__(self, other):
         if isinstance(other, Track):
-            if self.release == other.release:
+            if self.medium.release_id == other.medium.release_id:
                 return self.position < other.position
             else:
-                return self.release < other.release
+                return self.get_release() < other.get_release()
+
+    def __repr__(self):
+        return f"Track(name={self.title}, position={self.position}, recording={self.recording_id})"
 
     def __str__(self):
-        return f"{self.position}/{self.medium.track_count} of '{self.release.artist_credit_phrase}' - '{self.release.title}': '{self.recording.artist_credit_phrase}' - '{self.recording.title}'"
+        return f"{self.position}/{self.medium.track_count} of '{self.get_release().artist_credit_phrase}' - '{self.get_release().title}': '{self.get_recording().artist_credit_phrase}' - '{self.get_recording().title}'"
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            return item in self.recording.artists
+            return item.id in self.get_recording().artist_ids
         if isinstance(item, ReleaseGroup):
-            return self.release.release_group == item
+            return self.get_release().release_group_id == item.id
         if isinstance(item, Release):
-            return self.release == item
+            return self.medium.release_id == item.id
         if isinstance(item, Medium):
             return self.medium == item
         if isinstance(item, Recording):
-            return self.recording == item
+            return self.recording_id == item.id
         if isinstance(item, Work):
-            return self.recording in item.performances[PerformanceWorkAttributes.ALL]
+            return (
+                self.recording_id in item.performance_ids[PerformanceWorkAttributes.ALL]
+            )
 
 
 @dataclass
@@ -649,41 +735,26 @@ class Work(MBDataObject):
     id: WorkID
     title: str
     disambiguation: str
+    performance_ids: dict[PerformanceWorkAttributes, list[RecordingID]]
 
     work_type: Optional[str] = None
     _db_id: Optional[int] = field(default=None)
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    def __post_init__(self):
-        self._performance_ids = None
-        self._performances = None
-
-    @property
-    def performances(self) -> dict[PerformanceWorkAttributes, list[Recording]]:
-        if self._performances is None:
-            if self._performance_ids is None:
-                self._performances = self.factory.performances_of_work(self)
-            else:
-                self._performances = {
-                    k: [self.factory.get_recording(r) for r in v]
-                    for k, v in self._performance_ids.items()
-                }
-        return self._performances
-
-    def performance_by_type(
-        self, types: list[PerformanceWorkAttributes]
-    ) -> list[Recording]:
-        results = None
+    def get_performances_by_type(
+        self, types: list[PerformanceWorkAttributes] | PerformanceWorkAttributes
+    ) -> Iterator[Recording]:
+        yielded = set()
+        if isinstance(types, PerformanceWorkAttributes):
+            types = [types]
         for t in types:
-            if t in self.performances.keys():
-                if results is None:
-                    results = self.performances[t]
-                else:
-                    results = [r for r in results if r in self.performances[t]]
-                    results = list(set(results))
-        if results is None:
-            return []
-        return results
+            for r in self.performance_ids[t]:
+                if r not in yielded:
+                    yielded.add(r)
+                    yield self.factory.get_recording(r)
+
+    def __repr__(self):
+        return f"Work(name={self.title}, id={self.id})"
 
     def __str__(self):
         return f"{self.title}  [{self.id}]"
@@ -699,14 +770,16 @@ class Work(MBDataObject):
 
     def __contains__(self, item):
         if isinstance(item, Artist):
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
         if isinstance(item, ReleaseGroup):
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
         if isinstance(item, Release):
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
         if isinstance(item, Medium):
-            raise NotImplementedError
+            raise NotImplementedError  # TODO: Implement
         if isinstance(item, Track):
-            return item.recording in self.performances[PerformanceWorkAttributes.ALL]
+            return (
+                item.recording_id in self.performance_ids[PerformanceWorkAttributes.ALL]
+            )
         if isinstance(item, Recording):
-            return item in self.performances[PerformanceWorkAttributes.ALL]
+            return item.id in self.performance_ids[PerformanceWorkAttributes.ALL]

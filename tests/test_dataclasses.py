@@ -17,7 +17,7 @@ a_id = pymusicbrainz.ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
 rg_id = pymusicbrainz.ReleaseGroupID("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")
 rel_id = pymusicbrainz.ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922")
 track_id = pymusicbrainz.TrackID("ed3cb340-c11b-3580-a646-eaba1d109edd")
-rec_id = pymusicbrainz.RecordingID("77601dfe-df14-4894-a8b7-c5c68ca25e11")
+rec_id = pymusicbrainz.RecordingID("776e8086-0033-4cbc-a60f-407588152b4d")
 work_id = pymusicbrainz.WorkID("3705e2ef-c3d4-3683-9bd7-8574d1749a8d")
 
 # database lookup
@@ -27,6 +27,8 @@ db_factory = pymusicbrainz.MBFactory.get_factory()  # pymusicbrainz.factory.DBFa
 
 artist_db = db_factory.get_artist(a_id)
 print(artist_db)
+artist_rgs_db = list(artist_db.get_release_groups())
+
 
 release_group_db = db_factory.get_release_group(rg_id)
 print(release_group_db)
@@ -39,6 +41,8 @@ print(recording_db)
 
 work_db = db_factory.get_work(work_id)
 print(work_db)
+# p = work_db.performances
+
 
 # API lookup
 
