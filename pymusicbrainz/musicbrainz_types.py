@@ -5,6 +5,7 @@ import enum
 
 class ReleaseType(enum.StrEnum):
     """Constants for the different Musicbrainz release types"""
+
     NAT = "Nat"
     ALBUM = "Album"
     SINGLE = "Single"
@@ -33,7 +34,8 @@ PRIMARY_TYPES = {
     ReleaseType.SINGLE: 2,
     ReleaseType.EP: 3,
     ReleaseType.OTHER: 11,
-    ReleaseType.BROADCAST: 12}
+    ReleaseType.BROADCAST: 12,
+}
 
 
 class SecondaryTypeList(list[ReleaseType]):
@@ -57,12 +59,13 @@ SECONDARY_TYPES = {
     ReleaseType.MIXTAPE: 9,
     ReleaseType.DEMO: 10,
     ReleaseType.AUDIODRAMA: 11,
-    ReleaseType.FIELDRECORDING: 12
+    ReleaseType.FIELDRECORDING: 12,
 }
 
 
 class ReleaseStatus(enum.StrEnum):
     """Constants for the various Musicbrainz release statuses"""
+
     OFFICIAL = "official"
     PROMOTION = "promotion"
     BOOTLEG = "bootleg"
@@ -78,4 +81,15 @@ class PerformanceWorkAttributes(enum.StrEnum):
     MEDLEY = "medley"
     PARTIAL = "partial"
     NONE = "no-attr"
+    ALL = "all"
+
+
+class SearchType(enum.StrEnum):
+    """Constant to define what sort of search to perform"""
+
+    CANONICAL = "canonical"
+    STUDIO_ALBUM = "studio_album"
+    SINGLE = "single"
+    SOUNDTRACK = "soundtrack"
+    EP = "ep"
     ALL = "all"

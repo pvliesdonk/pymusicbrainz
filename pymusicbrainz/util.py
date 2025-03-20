@@ -97,6 +97,9 @@ def area_to_country_db(area: mbdata.models.Area) -> Optional[str]:
             return None
 
 
+default_date = datetime.datetime.fromtimestamp(0)
+
+
 def parse_partial_date(
     partial_date: mbdata.models.PartialDate | str,
 ) -> datetime.date | None:
@@ -113,4 +116,12 @@ def parse_partial_date(
             year=partial_date.year, month=partial_date.month, day=partial_date.day
         )
     elif isinstance(partial_date, str):
-        return dateutil.parser.parse(partial_date).date()
+        if not partial_date:
+            return None
+        try:
+            parsed_date = dateutil.parser.parse(
+                partial_date, default=default_date
+            ).date()
+        except dateutil.parser.ParserError:
+            _logger.error(f"Could not parse date '{partial_date}'")
+            return None

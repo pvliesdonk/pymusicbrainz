@@ -63,7 +63,7 @@ class Artist(MBDataObject):
 
     def get_release_group_ids(self) -> list[ReleaseGroupID]:
         if self._release_group_ids is None:
-            self._release_group_ids = self.factory.get_artist_release_group_ids_(
+            self._release_group_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.ALL,
                 secondary_types=SecondaryTypeList([ReleaseType.ALL]),
@@ -78,7 +78,7 @@ class Artist(MBDataObject):
 
     def get_album_ids(self) -> list[ReleaseGroupID]:
         if self._album_ids is None:
-            self._album_ids = self.factory.get_artist_release_group_ids_(
+            self._album_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.ALBUM,
                 secondary_types=SecondaryTypeList([ReleaseType.ALL]),
@@ -93,7 +93,7 @@ class Artist(MBDataObject):
 
     def get_single_ids(self) -> list[ReleaseGroupID]:
         if self._single_ids is None:
-            self._single_ids = self.factory.get_artist_release_group_ids_(
+            self._single_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.SINGLE,
                 secondary_types=SecondaryTypeList([ReleaseType.ALL]),
@@ -108,7 +108,7 @@ class Artist(MBDataObject):
 
     def get_ep_ids(self) -> list[ReleaseGroupID]:
         if self._ep_ids is None:
-            self._ep_ids = self.factory.get_artist_release_group_ids_(
+            self._ep_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.EP,
                 secondary_types=SecondaryTypeList([ReleaseType.ALL]),
@@ -123,7 +123,7 @@ class Artist(MBDataObject):
 
     def get_studio_album_ids(self) -> list[ReleaseGroupID]:
         if self._studio_album_ids is None:
-            self._studio_album_ids = self.factory.get_artist_release_group_ids_(
+            self._studio_album_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.ALBUM,
                 secondary_types=SecondaryTypeList([ReleaseType.NONE]),
@@ -138,7 +138,7 @@ class Artist(MBDataObject):
 
     def get_soundtrack_ids(self) -> list[ReleaseGroupID]:
         if self._soundtrack_ids is None:
-            self._soundtrack_ids = self.factory.get_artist_release_group_ids_(
+            self._soundtrack_ids = self.factory.get_artist_release_group_ids(
                 artist=self,
                 primary_type=ReleaseType.ALBUM,
                 secondary_types=SecondaryTypeList([ReleaseType.SOUNDTRACK]),

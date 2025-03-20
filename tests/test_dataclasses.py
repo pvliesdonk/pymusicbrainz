@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import pprint
 
 from context import pymusicbrainz
 
@@ -13,7 +14,7 @@ logging.getLogger("musicbrainzngs").setLevel(logging.ERROR)
 logging.getLogger("urllib3").setLevel(logging.ERROR)
 
 
-a_id = pymusicbrainz.ArtistID("026c4d7c-8dfe-46e8-ab14-cf9304d6863d")
+a_id = pymusicbrainz.ArtistID("0383dadf-2a4e-4d10-a46a-e9e041da8eb3")
 rg_id = pymusicbrainz.ReleaseGroupID("120c786d-a3b2-3c19-b4ff-2b7b3b4435bf")
 rel_id = pymusicbrainz.ReleaseID("a6f67b96-5f97-495c-b224-ec93d521f922")
 track_id = pymusicbrainz.TrackID("ed3cb340-c11b-3580-a646-eaba1d109edd")
@@ -27,8 +28,12 @@ db_factory = pymusicbrainz.MBFactory.get_factory()  # pymusicbrainz.factory.DBFa
 
 artist_db = db_factory.get_artist(a_id)
 print(artist_db)
-artist_rgs_db = list(artist_db.get_release_groups())
+# artist_rgs_db = list(artist_db.get_release_groups())
 
+
+artist_soundtracks_db = list(artist_db.get_soundtracks())
+for rg in artist_soundtracks_db:
+    print(rg)
 
 release_group_db = db_factory.get_release_group(rg_id)
 print(release_group_db)

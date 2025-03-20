@@ -5,7 +5,7 @@ import pathlib
 import shelve
 from abc import ABC, abstractmethod
 from functools import lru_cache, cache
-from typing import MutableMapping, Optional, Iterator
+from typing import MutableMapping, Optional, Iterator, Mapping
 
 import mbdata.models
 import musicbrainzngs
@@ -167,7 +167,7 @@ class MBFactory(ABC):
         pass
 
     @abstractmethod
-    def get_artist_release_group_ids_(
+    def get_artist_release_group_ids(
         self,
         artist: Artist,
         primary_type: ReleaseType,
@@ -263,7 +263,7 @@ class CacheFactory(MBFactory):
     def update_recording_id(self, mbid: RecordingID) -> RecordingID:
         return self.backup_factory.update_recording_id(mbid)
 
-    def get_artist_release_group_ids_(
+    def get_artist_release_group_ids(
         self,
         artist: Artist,
         primary_type: ReleaseType,
@@ -271,7 +271,7 @@ class CacheFactory(MBFactory):
         credited: bool,
         contributing: bool,
     ) -> list[ReleaseGroupID]:
-        return self.backup_factory.get_artist_release_group_ids_(
+        return self.backup_factory.get_artist_release_group_ids(
             artist=artist,
             primary_type=primary_type,
             secondary_types=secondary_types,
@@ -703,7 +703,7 @@ class DBFactory(MBFactory):
             else:
                 return RecordingID(str(res))
 
-    def get_artist_release_group_ids_(
+    def get_artist_release_group_ids(
         self,
         artist: Artist,
         primary_type: ReleaseType,
@@ -822,6 +822,11 @@ class APIFactory(MBFactory):
                 )
             musicbrainz_api.configure_musicbrainzngs()
 
+        self._cache_artist_release_group: dict[ArtistID, list] = {}
+        self._cache_artist_release_group_contributing: dict[ArtistID, list] = {}
+        self._cache_artist_release: dict[ArtistID, list] = {}
+        self._cache_artist_release_contributing: dict[ArtistID, list] = {}
+
     def _artist_credit_phrase(self, artist_credit: dict) -> str:
         s: str = ""
         for a in artist_credit:
@@ -875,6 +880,16 @@ class APIFactory(MBFactory):
 
         r_ids = [ReleaseID(r["id"]) for r in result["releases"]]
 
+        try:
+            primary_type = ReleaseType(result["primary-type"])
+            types = [ReleaseType(result["primary-type"])] + [
+                ReleaseType(s) for s in result["secondary-types"]
+            ]
+
+        except ValueError:
+            primary_type = None
+            types = [ReleaseType(s) for s in result["secondary-types"]]
+
         release_group = ReleaseGroup(
             id=in_obj,
             _db_id=None,
@@ -883,9 +898,8 @@ class APIFactory(MBFactory):
             artist_ids=[ArtistID(a["artist"]["id"]) for a in result["artist-credit"]],
             aliases=[result["title"]]
             + ([a["name"] for a in result["aliases"]] if "aliases" in result else []),
-            primary_type=ReleaseType(result["primary-type"]),
-            types=[ReleaseType(result["primary-type"])]
-            + [ReleaseType(s) for s in result["secondary-types"]],
+            primary_type=primary_type,
+            types=types,
             disambiguation=result["disambiguation"],
             artist_credit_phrase=self._artist_credit_phrase(result["artist-credit"]),
             first_release_date=first_release_date,
@@ -1092,7 +1106,103 @@ class APIFactory(MBFactory):
         # TODO: Implement
         raise NotImplementedError
 
-    def get_artist_release_group_ids_(
+    def _get_artist_all_releases_contributing(
+        self,
+        artist: Artist,
+    ) -> Iterator[dict]:
+
+        if artist.id in self._cache_artist_release_contributing:
+            self._logger.info("Returning from cache")
+            yield from self._cache_artist_release_contributing[artist.id]
+
+        self._cache_artist_release_contributing[artist.id] = []
+
+        params = {
+            "track_artist": str(artist.id),
+            "release_status": ReleaseStatus.OFFICIAL,
+            "includes": ["release-groups", "artist-credits"],
+            "limit": 100,
+        }
+
+        offset = 0
+        fetched = None
+        while fetched is None or fetched >= 100:
+            fetch_result = musicbrainzngs.browse_releases(**params, offset=offset)
+            fetched = len(fetch_result)
+            for r in fetch_result["releases"]:
+                self._cache_artist_release_contributing[artist.id].append(r)
+                yield r
+            offset = offset + fetched
+
+    def _get_artist_all_releases(
+        self,
+        artist: Artist,
+    ) -> Iterator[dict]:
+
+        if artist.id in self._cache_artist_release:
+            self._logger.info("Returning from cache")
+            yield from self._cache_artist_release[artist.id]
+
+        self._cache_artist_release[artist.id] = []
+
+        params = {
+            "track_artist": str(artist.id),
+            "release_status": ReleaseStatus.OFFICIAL,
+            "includes": ["release-groups"],
+            "limit": 100,
+        }
+
+        offset = 0
+        fetched = None
+        while fetched is None or fetched >= 100:
+            fetch_result = musicbrainzngs.browse_releases(**params, offset=offset)
+            fetched = len(fetch_result["releases"])
+            for r in fetch_result["releases"]:
+                self._cache_artist_release[artist.id].append(r)
+                yield r
+            offset = offset + fetched
+
+    def _get_artist_all_release_groups(
+        self,
+        artist: Artist,
+    ) -> Iterator[dict]:
+
+        if artist.id in self._cache_artist_release_group:
+            self._logger.info("Returning from cache")
+            yield from self._cache_artist_release_group[artist.id]
+
+        self._cache_artist_release_group[artist.id] = []
+
+        params = {"artist": str(artist.id), "limit": 100}
+
+        offset = 0
+        fetched = None
+        while fetched is None or fetched >= 100:
+            fetch_result = musicbrainzngs.browse_release_groups(**params, offset=offset)
+            fetched = len(fetch_result["release-groups"])
+            for r in fetch_result["release-groups"]:
+                self._cache_artist_release_group[artist.id].append(r)
+                yield r
+            offset = offset + fetched
+
+    def _get_artist_all_release_group_contributing(
+        self,
+        artist: Artist,
+    ) -> Iterator[dict]:
+
+        if artist.id in self._cache_artist_release_group_contributing:
+            self._logger.info("Returning from cache")
+            yield from self._cache_artist_release_group_contributing[artist.id]
+
+        self._cache_artist_release_group_contributing[artist.id] = []
+
+        for rel in self._get_artist_all_releases_contributing(artist=artist):
+            self._cache_artist_release_group_contributing[artist.id].append(
+                rel["release-group"]
+            )
+            yield rel["release-group"]
+
+    def get_artist_release_group_ids(
         self,
         artist: Artist,
         primary_type: ReleaseType,
@@ -1100,4 +1210,41 @@ class APIFactory(MBFactory):
         credited: bool,
         contributing: bool,
     ) -> list["ReleaseGroupID"]:
-        raise NotImplementedError  # TODO: implement
+
+        result = []
+        # rg[" primary-type"], rg["secondary-types"] rg["
+        if credited:
+            for rg in self._get_artist_all_release_groups(artist=artist):
+                if (
+                    primary_type != ReleaseType.ALL
+                    and rg["primary-type"] != primary_type
+                ):
+                    continue
+                if ReleaseType.ALL not in secondary_types:
+                    if not all([s in rg["secondary-types"] for s in secondary_types]):
+                        continue
+                    if not all([s in secondary_types for s in rg["secondary-types"]]):
+                        continue
+
+                rid = ReleaseGroupID(rg["id"])
+                if rid not in result:
+                    result.append(rid)
+
+        if contributing:
+            for rg in self._get_artist_all_release_group_contributing(artist=artist):
+                if (
+                    primary_type != ReleaseType.ALL
+                    and rg["primary-type"] != primary_type
+                ):
+                    continue
+                if ReleaseType.ALL not in secondary_types:
+                    if not all([s in rg["secondary-types"] for s in secondary_types]):
+                        continue
+                    if not all([s in secondary_types for s in rg["secondary-types"]]):
+                        continue
+
+                rid = ReleaseGroupID(rg["id"])
+                if rid not in result:
+                    result.append(rid)
+
+        return result
