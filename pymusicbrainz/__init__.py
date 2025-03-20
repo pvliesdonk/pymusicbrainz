@@ -1,25 +1,8 @@
 import pathlib
 
-from . import db
-
-from .search import Search
-from .musicbrainz_types import (
-    ReleaseType,
-    SecondaryTypeList,
-    ReleaseStatus,
-    PerformanceWorkAttributes,
-)
-from .identifiers import (
-    ArtistID,
-    ReleaseGroupID,
-    ReleaseID,
-    RecordingID,
-    TrackID,
-    WorkID,
-)
-from .constants import UNKNOWN_ARTIST_ID, VA_ARTIST_ID
-from .factory import MBFactory
-from .mbdataclass import Artist, ReleaseGroup, Release, Recording, Medium, Track, Work
+from pymusicbrainz import db
+from pymusicbrainz.identifiers import *
+from pymusicbrainz.factory import MBFactory
 
 
 def get_factory(shelf_file: pathlib.Path = None) -> MBFactory:
