@@ -12,7 +12,9 @@ create table metadata(key PRIMARY KEY, attribute);
 
 
 .import canonical_recording_redirect.csv canonical_recording_redirect
+delete from canonical_recording_redirect where canonical_recording_redirect.recording_mbid='recording_mbid';
 .import canonical_release_redirect.csv canonical_release_redirect
+delete from canonical_release_redirect where canonical_release_redirect.release_mbid='release_mbid';
 
 insert into metadata (key,attribute) values ('date', date());
 

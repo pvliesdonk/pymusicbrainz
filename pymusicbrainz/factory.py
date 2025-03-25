@@ -11,9 +11,9 @@ import mbdata.models
 import musicbrainzngs
 import sqlalchemy as sa
 
-from . import db, util, musicbrainz_api
-from .constants import VA_ARTIST_ID
-from .musicbrainz_types import (
+from pymusicbrainz import db, util, musicbrainz_api
+from pymusicbrainz.constants import VA_ARTIST_ID
+from pymusicbrainz.musicbrainz_types import (
     ReleaseType,
     ReleaseStatus,
     PerformanceWorkAttributes,
@@ -21,14 +21,14 @@ from .musicbrainz_types import (
     PRIMARY_TYPES,
     SECONDARY_TYPES,
 )
-from .exceptions import (
+from pymusicbrainz.exceptions import (
     FactoryNotAvailable,
     NotFoundError,
     MBIDNotExistsError,
     MBApiError,
 )
-from .identifiers import *
-from .mbdataclass import (
+from pymusicbrainz.identifiers import *
+from pymusicbrainz.mbdataclass import (
     Artist,
     ReleaseGroup,
     Release,

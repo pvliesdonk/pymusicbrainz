@@ -125,3 +125,14 @@ def parse_partial_date(
         except dateutil.parser.ParserError:
             _logger.error(f"Could not parse date '{partial_date}'")
             return None
+
+
+_re_live = re.compile(r"(.*) [(\[]live.*?[)\]]", re.IGNORECASE)
+
+
+def title_is_live(title: str) -> Optional[str]:
+    m = _re_live.match(title)
+    if m:
+        new_title = m.group(1)
+        return new_title
+    return None

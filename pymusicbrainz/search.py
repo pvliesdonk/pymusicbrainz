@@ -6,13 +6,48 @@ from abc import ABC, abstractmethod
 from functools import cache
 from typing import Sequence, Optional, Iterator
 
-from .exceptions import IllegaleRecordingReleaseGroupCombination, NotFoundError
-from .identifiers import RecordingID, ArtistID
-from .mbdataclass import Artist, ReleaseGroup, Recording, Release, Track
-from .musicbrainz_types import SearchType
+from pymusicbrainz import MBFactory
+from pymusicbrainz.canonical import CanonicalSearch
+from pymusicbrainz.exceptions import (
+    IllegaleRecordingReleaseGroupCombination,
+    NotFoundError,
+    IllegalArgumentError,
+)
+from pymusicbrainz.identifiers import RecordingID, ArtistID
+from pymusicbrainz.mbdataclass import Artist, ReleaseGroup, Recording, Release, Track
+from pymusicbrainz.musicbrainz_types import SearchType
+from pymusicbrainz.util import title_is_live
 
 
 class Search(ABC):
+    _instance = None
+    _logger: logging.Logger = logging.getLogger(__name__)
+
+    @classmethod
+    def get_instance(
+        cls, factory: MBFactory = None, canonical_search: CanonicalSearch = None
+    ):
+        if cls._instance is None:
+            cls._instance = APISearch(
+                factory=factory, canonical_search=canonical_search
+            )
+        return cls._instance
+
+    def __init__(
+        self, factory: MBFactory = None, canonical_search: CanonicalSearch = None
+    ):
+        if factory is None:
+            self._logger.warning(
+                f"No factory provided. Will initiate a default factory."
+            )
+            self.factory = MBFactory.get_factory()
+        self.factory = factory
+
+        if canonical_search is not None and canonical_search.is_available():
+            self.canonical_search = canonical_search
+        else:
+            self._logger.warning(f"Canonical searches disabled")
+            self.canonical_search = None
 
     @abstractmethod
     def search_song(
@@ -29,7 +64,34 @@ class Search(ABC):
 class APISearch(Search):
     _logger: logging.Logger = logging.getLogger(__name__)
 
-    pass
+    def search_song(
+        self,
+        artist_query: Artist | ArtistID | str,
+        title_query: str,
+        file: pathlib.Path = None,
+        seed_id: RecordingID = None,
+        additional_seed_ids: Sequence[RecordingID] = None,
+    ):
+
+        # Make sure we know what to search for
+
+        if artist_query is None and title_query is None:
+            if seed_id is None:
+                raise IllegalArgumentError(
+                    "Either provide artist_query and title_query, or a seed_id"
+                )
+            seed_recording = self.factory.get_recording(seed_id)
+            self._logger.warning(
+                "Reading artist_query and title_query from seed recording id"
+            )
+            artist_query = seed_recording.artist_credit_phrase
+            title_query = seed_recording.title
+
+        # Check if we might be looking for a LIVE recording
+
+        live_title = title_is_live(title_query)
+
+        self._logger.info(f"Searching for '{artist_query}' - '{title_query}'")
 
 
 class MusicbrainzSingleResult:

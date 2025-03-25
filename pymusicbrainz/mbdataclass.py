@@ -9,8 +9,8 @@ from typing import Optional, Iterator
 import inflection
 import rapidfuzz
 
-from . import factory, util, constants
-from .identifiers import (
+from pymusicbrainz import factory, util, constants
+from pymusicbrainz.identifiers import (
     MBID,
     ArtistID,
     ReleaseGroupID,
@@ -19,7 +19,11 @@ from .identifiers import (
     TrackID,
     WorkID,
 )
-from .musicbrainz_types import ReleaseType, PerformanceWorkAttributes, SecondaryTypeList
+from pymusicbrainz.musicbrainz_types import (
+    ReleaseType,
+    PerformanceWorkAttributes,
+    SecondaryTypeList,
+)
 
 
 @dataclass

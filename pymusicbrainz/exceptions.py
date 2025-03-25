@@ -20,3 +20,15 @@ class IllegaleRecordingReleaseGroupCombination(MBApiError):
 
 class FactoryNotAvailable(MBApiError):
     pass
+
+
+class TypesenseNotAvailable(MBApiError):
+    pass
+
+
+class CanonicalDBNotAvailable(MBApiError):
+    pass
+
+
+class NoCanonicalFound(MBApiError):
+    pass
