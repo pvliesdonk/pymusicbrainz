@@ -6,7 +6,9 @@ This document holds **direction, order and known unknowns**. It does not hold *h
 
 Progress lives in GitHub: [milestones](https://github.com/pvliesdonk/pymusicbrainz/milestones) and issues track what is open, closed and blocked. Nothing in this file counts, estimates or reports status — that would churn constantly and go stale invisibly.
 
-**Nothing here is executable.** A milestone is an idea. Work starts from a refined feature issue or it does not start. Each milestone carries a refinement issue; until that produces features, the milestone is direction only.
+**Nothing here is executable.** A milestone is an idea. Each milestone carries a refinement issue; until that produces features, the milestone is direction only.
+
+Work starts from an issue labelled `ready`, or it does not start. That gate is a label rather than a judgement so that an independent reader can test it.
 
 ## Provenance key
 
@@ -39,7 +41,7 @@ Each acceptance criterion is an outcome, written before any feature existed, and
 | [C — Canonical matching without a server](https://github.com/pvliesdonk/pymusicbrainz/milestone/3) | Canonical matching works on a machine running no services, from an artefact that can be re-downloaded. | `derived` |
 | [D — A reviewable search policy](https://github.com/pvliesdonk/pymusicbrainz/milestone/4) | A reader can follow how a release is chosen, and disagree with it specifically. | `derived` |
 | [E — Retire the forked dependency](https://github.com/pvliesdonk/pymusicbrainz/milestone/5) | MusicBrainz schema updates can be adopted without maintaining a fork. | `derived` |
-| [F — Works without the mirror](https://github.com/pvliesdonk/pymusicbrainz/milestone/6) | The library answers acceptably with no self-hosted infrastructure, and says so when it is degraded. | `derived` |
+| [F — Works without the mirror](https://github.com/pvliesdonk/pymusicbrainz/milestone/6) | The library answers the ground-truth corpus with no self-hosted infrastructure; every result produced that way is marked as such; and any way its answers differ from the mirror's is recorded rather than discovered later. | `derived` |
 | [G — Coherent albums](https://github.com/pvliesdonk/pymusicbrainz/milestone/7) | Tagging a record yields one release, not several. | `derived` |
 
 No milestone carries a due date. Milestones can arrive sooner, be postponed, or run in parallel with features woven between them, so a total order over them is a claim without evidence behind it.
@@ -66,7 +68,9 @@ That is a result in its own right, and it is recorded here because it is exactly
 
 `Refine C` is blocked by its spike. That edge lives in GitHub because it is executable and structural; it is not repeated as prose here.
 
-One edge cannot be created yet: recording B's baseline should not happen before A's behaviour lands. Both milestones are still ideas, so there are no features to connect. **This edge must be created during refinement of A and B** — it is not an argument to be remembered, it is a graph edge waiting for its endpoints.
+One edge cannot be created yet: recording B's baseline should not happen before A's behaviour lands. Both milestones are still ideas, so there are no features to connect.
+
+**Whichever of A and B is refined second owns creating that edge**, because only then do both endpoints exist. It is a done-when condition on that refinement issue, not an argument to be remembered.
 
 ## Known unknowns
 
@@ -76,8 +80,8 @@ Every unknown carries a pointer to the work whose completion answers it. An unkn
 |---|---|---|
 | What share of wrong answers comes from the MusicBrainz graph's incompleteness — which nothing here can fix — versus from how results are chosen, which is fixable? | **B** | premise `stated`, framing `derived` |
 | How much of the current answer quality is explained by the canonical seed being unavailable? | **C** | `derived` |
-| Is an embedded canonical index viable at the published dump's real scale? | [spike #14](https://github.com/pvliesdonk/pymusicbrainz/issues/14), appetite one working session | `derived` |
-| Can an API-backed implementation reproduce the mirror's release-group sets at all? The mirror answers these from a precomputed table that has no equivalent in the web API. | refinement of **F** | `evidenced` — read from the schema and query code, 2026-07-29 |
+| Is an embedded canonical index viable at the published dump's real scale? | [spike #14](https://github.com/pvliesdonk/pymusicbrainz/issues/14) | `derived` |
+| Can an API-backed implementation reproduce the mirror's release-group sets at all? The mirror answers these from a precomputed table that has no equivalent in the web API. | refinement of **F** | `evidenced` — `pymusicbrainz/dataclasses.py` queries `mbdata.models.ArtistReleaseGroup`, a MusicBrainz materialised table; read 2026-07-29 |
 | Is normalised exact matching enough, or is fuzzy matching load-bearing? | **B** | `derived` |
 | Would embeddings or vector search beat exact-plus-fuzzy matching? | the answer to the line above; nothing is planned before that | `stated` — raised by the maintainer |
 | How much run-to-run variance is there actually? It has never been measured. | **B** | `derived` |
