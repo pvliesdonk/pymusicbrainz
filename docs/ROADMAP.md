@@ -2,24 +2,26 @@
 
 > **This is agent-authored synthesis, not a record of decisions.** It was written by Claude Code in conversation with the maintainer. Items tagged `stated` are the maintainer's; everything else is the agent's reading and is open to revision at any time. Do not cite it back at the maintainer as their own decision.
 
-This document holds **direction, order and known unknowns**. It does not hold *how*, and it does not hold state.
+This document is for **direction, order and known unknowns** — not for *how*, and not for status.
 
-Progress lives in GitHub: [milestones](https://github.com/pvliesdonk/pymusicbrainz/milestones) and issues track what is open, closed and blocked. Nothing in this file counts, estimates or reports status — that would churn constantly and go stale invisibly.
+Status belongs in GitHub: [milestones](https://github.com/pvliesdonk/pymusicbrainz/milestones) and issues track what is open, closed and blocked. Keep counts, estimates and progress out of here; they churn, and they go stale where nobody is looking.
 
-**Nothing here is executable.** A milestone is an idea. Each milestone carries a refinement issue; until that produces features, the milestone is direction only.
+**Nothing here is executable.** A milestone is an idea until its refinement issue produces features; until then it is direction only.
 
 ## How this roadmap is kept
 
-This section is the single definition of the mechanics. `CLAUDE.md` points here and restates none of it, so the two cannot drift apart.
+The rules below are the ones to follow. Label descriptions in GitHub are deliberately bare identifiers that state no rule, so there is nothing in them to fall out of step with this table.
+
+`scripts/check_roadmap_consistency.sh` verifies that this file agrees with the GitHub state it describes — acceptance criteria matching across index, milestone and refinement issue, no due dates, labels present and rule-free, and `CLAUDE.md` still a pointer. Run it after editing this file and after refining a milestone. A future session inherits whatever this document says; the check is what stops that being wrong.
 
 | Label | Kind of work | Done when |
 |---|---|---|
 | `refinement` | Shape a milestone into features | Features exist that cover the milestone's acceptance criterion |
 | `research` | Answer a question; carries an appetite | The question is answered |
 | `feature` | Delivery work | The software works |
-| `ready` | — | *Not a kind of work.* The gate: **the only label that authorises building** |
+| `ready` | *Not a kind of work* — a gate applied to a `feature` | Not applicable |
 
-**Work starts from an issue labelled `ready`, or it does not start.** The gate is a label rather than a judgement so an independent reader can test it.
+**Building starts from a `feature` issue labelled `ready`, or it does not start.** Refinement and research need no gate: shaping a milestone and answering a question are exactly what an unshaped milestone is for. The gate is a label rather than a judgement so an independent reader can test it.
 
 **A milestone with no `feature` issues has not been shaped**, and nothing may be built from it. Counting open issues is not the test — a milestone can carry research spikes alongside its refinement issue and still be unshaped.
 
@@ -81,9 +83,9 @@ That is a result in its own right, and it is recorded here because it is exactly
 
 ### Order that the graph carries instead
 
-Executable, structural edges live in GitHub as blocked-by relationships on the issues themselves. They are not restated here, because this file would then carry a status that goes stale invisibly the moment the edge is discharged.
+Executable, structural edges live in GitHub as blocked-by relationships on the issues themselves. Read them there: an edge copied into prose stops being true the moment it is discharged, and nothing here would notice.
 
-One edge cannot be created yet: recording B's baseline should not happen before A's behaviour lands. Both milestones are still ideas, so there are no features to connect.
+One edge cannot be created until both its endpoints exist as features: recording B's baseline should not happen before A's behaviour lands.
 
 **Whichever of A and B is refined second owns creating that edge**, because only then do both endpoints exist. It is a done-when condition on that refinement issue, not an argument to be remembered.
 
@@ -109,7 +111,7 @@ Unknowns that do not change what happens next are recorded here and left unticke
 A roadmap that is not maintained is worse than none, because it is confidently wrong. On returning:
 
 - What closed, and which unknowns did it resolve?
-- Does the issue graph now imply an order this argument contradicts? **The graph wins** — rewrite the argument here, never bend the graph to match the prose.
+- Does the issue graph now imply an order this argument contradicts? (See *How this roadmap is kept* for which one gives way.)
 - Did anything get postponed, and why? Record the reason.
 - Which `derived` items are now `evidenced`, or now wrong? Every closed research issue should have moved something in this file. One that closed without changing the argument produced nothing.
 - Did any research issue exceed its appetite? That is a finding about the direction, not a request for more time.
