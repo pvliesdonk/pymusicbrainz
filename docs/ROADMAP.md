@@ -10,9 +10,7 @@ Status belongs in GitHub: [milestones](https://github.com/pvliesdonk/pymusicbrai
 
 ## How this roadmap is kept
 
-The rules below are the ones to follow. Label descriptions in GitHub are deliberately bare identifiers that state no rule, so there is nothing in them to fall out of step with this table.
-
-`scripts/check_roadmap_consistency.sh` verifies that this file agrees with the GitHub state it describes — acceptance criteria matching across index, milestone and refinement issue, no due dates, labels present and rule-free, and `CLAUDE.md` still a pointer. Run it after editing this file and after refining a milestone. A future session inherits whatever this document says; the check is what stops that being wrong.
+The rules below are the ones to follow.
 
 | Label | Kind of work | Done when |
 |---|---|---|
@@ -85,9 +83,7 @@ That is a result in its own right, and it is recorded here because it is exactly
 
 Executable, structural edges live in GitHub as blocked-by relationships on the issues themselves. Read them there: an edge copied into prose stops being true the moment it is discharged, and nothing here would notice.
 
-One edge cannot be created until both its endpoints exist as features: recording B's baseline should not happen before A's behaviour lands.
-
-**Whichever of A and B is refined second owns creating that edge**, because only then do both endpoints exist. It is a done-when condition on that refinement issue, not an argument to be remembered.
+One ordering constraint has no edge yet because its endpoints do not exist: recording B's baseline should not precede A's behaviour landing. Rather than describe it here, it is written into the refinement issues for A and B as a done-when condition, so whichever is refined second creates the edge.
 
 ## Known unknowns
 
