@@ -15,7 +15,7 @@ Work starts from an issue labelled `ready`, or it does not start. That gate is a
 | Tag | Meaning | How it may be changed |
 |---|---|---|
 | `stated` | The maintainer said it | Never revised unilaterally. If evidence contradicts it, surface the contradiction — do not edit around it |
-| `derived` | Agent synthesis | Revise in place at any refinement |
+| `derived` | Agent synthesis | Revise in place at any refinement — **except** milestone acceptance criteria, which are frozen once refinement of their milestone begins (see *Milestones*) |
 | `evidenced` | Read from the code or repo | Re-check the locator on revisit; if it no longer resolves, the item is `derived` again |
 
 ## The ambition
@@ -66,7 +66,7 @@ That is a result in its own right, and it is recorded here because it is exactly
 
 ### Order that the graph carries instead
 
-`Refine C` is blocked by its spike. That edge lives in GitHub because it is executable and structural; it is not repeated as prose here.
+Executable, structural edges live in GitHub as blocked-by relationships on the issues themselves. They are not restated here, because this file would then carry a status that goes stale invisibly the moment the edge is discharged.
 
 One edge cannot be created yet: recording B's baseline should not happen before A's behaviour lands. Both milestones are still ideas, so there are no features to connect.
 
