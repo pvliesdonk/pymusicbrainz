@@ -83,7 +83,7 @@ That is a result in its own right, and it is recorded here because it is exactly
 
 Executable, structural edges live in GitHub as blocked-by relationships on the issues themselves. Read them there: an edge copied into prose stops being true the moment it is discharged, and nothing here would notice.
 
-One ordering constraint has no edge yet because its endpoints do not exist: recording B's baseline should not precede A's behaviour landing. Rather than describe it here, it is written into the refinement issues for A and B as a done-when condition, so whichever is refined second creates the edge.
+Two cases arise when the milestones involved are not both shaped. Where work depends on how another milestone is *shaped*, block against that milestone's refinement issue: the shape is what is being waited on, and the refinement issue is where it is decided. Where it depends on delivered behaviour, the issue that would carry the blocked-by relationship is a feature of the depending milestone, and while that milestone is unshaped there is nothing to attach to. Carry it as a done-when condition on the refinement issues involved: each records that it looked for the other side, and whichever is refined last creates the edge.
 
 ## Known unknowns
 
