@@ -240,7 +240,8 @@ cython_debug/
 #.idea/
 
 
-# Repowise codebase index and local agent/editor config
+# Repowise codebase index, and local agent/editor config
+# .mcp.json is project-level MCP config, ignored here by choice rather than because it is machine-local
 .claude
 .mcp.json
 .repowise

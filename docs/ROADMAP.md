@@ -8,7 +8,22 @@ Progress lives in GitHub: [milestones](https://github.com/pvliesdonk/pymusicbrai
 
 **Nothing here is executable.** A milestone is an idea. Each milestone carries a refinement issue; until that produces features, the milestone is direction only.
 
-Work starts from an issue labelled `ready`, or it does not start. That gate is a label rather than a judgement so that an independent reader can test it.
+## How this roadmap is kept
+
+This section is the single definition of the mechanics. `CLAUDE.md` points here and restates none of it, so the two cannot drift apart.
+
+| Label | Kind of work | Done when |
+|---|---|---|
+| `refinement` | Shape a milestone into features | Features exist that cover the milestone's acceptance criterion |
+| `research` | Answer a question; carries an appetite | The question is answered |
+| `feature` | Delivery work | The software works |
+| `ready` | — | *Not a kind of work.* The gate: **the only label that authorises building** |
+
+**Work starts from an issue labelled `ready`, or it does not start.** The gate is a label rather than a judgement so an independent reader can test it.
+
+**A milestone with no `feature` issues has not been shaped**, and nothing may be built from it. Counting open issues is not the test — a milestone can carry research spikes alongside its refinement issue and still be unshaped.
+
+When the issue graph comes to imply an order this document argues against, **the graph wins**: rewrite the argument here rather than bending the graph to match the prose.
 
 ## Provenance key
 
@@ -83,7 +98,7 @@ Every unknown carries a pointer to the work whose completion answers it. An unkn
 | Is an embedded canonical index viable at the published dump's real scale? | [spike #14](https://github.com/pvliesdonk/pymusicbrainz/issues/14) | `derived` |
 | Can an API-backed implementation reproduce the mirror's release-group sets at all? The mirror answers these from a precomputed table that has no equivalent in the web API. | refinement of **F** | `evidenced` — `pymusicbrainz/dataclasses.py` queries `mbdata.models.ArtistReleaseGroup`, a MusicBrainz materialised table; read 2026-07-29 |
 | Is normalised exact matching enough, or is fuzzy matching load-bearing? | **B** | `derived` |
-| Would embeddings or vector search beat exact-plus-fuzzy matching? | the answer to the line above; nothing is planned before that | `stated` — raised by the maintainer |
+| Would embeddings or vector search beat exact-plus-fuzzy matching? | whether fuzzy matching turns out to be load-bearing (**B**); nothing is planned before that answer | `stated` — raised by the maintainer |
 | How much run-to-run variance is there actually? It has never been measured. | **B** | `derived` |
 | Is the library's editorial idea of the "right" release the one the maintainer actually wants? Writing expectations by hand is the act of deciding this. | **B** | `derived` |
 
