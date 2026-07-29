@@ -33,6 +33,9 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Expose token to Claude's shell
+        run: echo "GH_TOKEN=${{ github.token }}" >> "$GITHUB_ENV"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
@@ -46,5 +49,9 @@ jobs:
           track_progress: true
           display_report: true
           include_fix_links: false
+          claude_args: |
+            --allowedTools "mcp__github__get_*,mcp__github__list_*,mcp__github__search_*,mcp__github_ci__*,mcp__github_inline_comment__*,Bash(gh api *)"
+          additional_permissions: |
+            actions: read
           
           
